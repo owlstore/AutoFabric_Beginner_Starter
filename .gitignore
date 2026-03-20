@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Env
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build / cache
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local temp files
+*.sqlite3
