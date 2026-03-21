@@ -1,0 +1,142 @@
+import SectionCard from "../common/SectionCard";
+import Badge from "../common/Badge";
+import KV from "../common/KV";
+import ExpandableTextRow from "../common/ExpandableTextRow";
+
+export default function OutcomeOverviewPanel({
+  detail,
+  expandedFields,
+  setExpandedFields,
+  continueFromCurrentOutcome,
+  generateGoalCandidates,
+  goalCandidates,
+  applyGoalCandidate,
+  saveCandidateToRecent,
+  copyText,
+}) {
+  if (!detail) {
+    return (
+      <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+        未选中结果。
+      </div>
+    );
+  }
+
+  return (
+    <SectionCard
+      title="结果概览"
+      extra={
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => continueFromCurrentOutcome(detail)}
+            className="rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+          >
+            基于当前结果继续
+          </button>
+          <button
+            onClick={() => generateGoalCandidates(detail)}
+            className="rounded-xl border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            生成后续目标候选
+          </button>
+          <button className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            执行
+          </button>
+        </div>
+      }
+    >
+      <div className="mb-4 flex flex-wrap gap-2">
+        <Badge tone="purple">{detail.goalTypeLabel}</Badge>
+        <Badge tone={detail.statusTone}>{detail.statusLabel}</Badge>
+        <Badge tone="info">{detail.stageLabel}</Badge>
+        <Badge tone="info">推荐 Agent</Badge>
+      </div>
+
+      <div className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <Badge tone="info">推荐执行方式</Badge>
+          <Badge tone="purple">{detail.recommendedTemplate}</Badge>
+        </div>
+        <div className="text-sm text-slate-700">{detail.recommendedReason}</div>
+        <button className="mt-3 rounded-xl border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100">
+          应用推荐并打开 OpenClaw
+        </button>
+      </div>
+
+      <KV label="目标ID" value={detail.goalId} />
+      <KV label="结果ID" value={detail.outcomeId} />
+      <KV label="标题" value={detail.title} />
+
+      <ExpandableTextRow
+        label="用户目标"
+        value={detail.rawInput}
+        expanded={expandedFields.goal}
+        onToggle={() => setExpandedFields((prev) => ({ ...prev, goal: !prev.goal }))}
+        minLength={70}
+      />
+      <ExpandableTextRow
+        label="当前结果"
+        value={detail.currentResult}
+        expanded={expandedFields.result}
+        onToggle={() => setExpandedFields((prev) => ({ ...prev, result: !prev.result }))}
+        minLength={90}
+      />
+      <ExpandableTextRow
+        label="下一步行动"
+        value={detail.nextAction}
+        expanded={expandedFields.next}
+        onToggle={() => setExpandedFields((prev) => ({ ...prev, next: !prev.next }))}
+        minLength={90}
+      />
+      <KV label="更新时间" value={detail.updatedAt} />
+
+      {goalCandidates.length ? (
+        <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <div className="mb-3 text-sm font-medium text-slate-800">后续目标候选</div>
+          <div className="space-y-3">
+            {goalCandidates.map((item, index) => (
+              <div key={index} className="rounded-2xl border border-blue-100 bg-white p-3">
+                <div className="whitespace-pre-wrap text-sm text-slate-700">{item}</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => applyGoalCandidate(item)}
+                    className="rounded-xl border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                  >
+                    使用这个候选
+                  </button>
+                  <button
+                    onClick={() => saveCandidateToRecent(item)}
+                    className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    加入最近提交
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          onClick={() => copyText(detail.rawInput, "用户目标")}
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          复制用户目标
+        </button>
+        <button
+          onClick={() => copyText(detail.currentResult, "当前结果")}
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          复制当前结果
+        </button>
+        <button
+          onClick={() => copyText(detail.nextAction, "下一步行动")}
+          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          复制下一步
+        </button>
+      </div>
+    </SectionCard>
+  );
+}

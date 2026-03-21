@@ -1,0 +1,19 @@
+{
+  "project_path": "/Users/kim/Desktop/AutoFabric_Beginner_Starter",
+  "entry_file": "app/main.py",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "handler": "health",
+      "file": "app/main.py",
+      "line": 35
+    }
+  ],
+  "summary": {
+    "total_routes": 1,
+    "methods": {
+      "GET": 1
+    }
+  }
+}

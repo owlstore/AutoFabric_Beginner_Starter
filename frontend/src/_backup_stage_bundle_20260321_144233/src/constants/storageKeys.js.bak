@@ -1,0 +1,5 @@
+export const STORAGE_KEYS = {
+  INPUT_DRAFT: "autofabric.inputDraft",
+  RECENT_INPUTS: "autofabric.recentInputs",
+  OPENCLAW_LAST_USED: "autofabric.openclaw.lastUsed",
+};

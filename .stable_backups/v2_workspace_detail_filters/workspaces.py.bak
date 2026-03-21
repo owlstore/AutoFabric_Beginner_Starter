@@ -1,0 +1,16 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from app.core.db import get_db
+from app.services.workspace_service import build_workspace_items
+
+
+router = APIRouter()
+
+
+@router.get("/workspaces")
+def list_workspaces(limit: int = 100, db: Session = Depends(get_db)):
+    items = build_workspace_items(db, limit=limit)
+    return {"items": items}

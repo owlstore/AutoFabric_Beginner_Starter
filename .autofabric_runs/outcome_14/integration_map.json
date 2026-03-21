@@ -1,0 +1,104 @@
+{
+  "project_path": "/Users/kim/Desktop/AutoFabric_Beginner_Starter",
+  "frontend_files_scanned": 17,
+  "frontend_usage": [
+    {
+      "file": "frontend/src/App.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/adapters/workspaceAdapter.js",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/api/client.js",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/ActionPanel.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/EntryForm.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/ExecutorPanel.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/GoalsListPanel.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/HeaderStatusBar.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/OutcomesListPanel.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/ParsedGoalCard.jsx",
+      "imports": [
+        "./workspaceUi"
+      ],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/StatusMessage.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/WorkspaceDetails.jsx",
+      "imports": [
+        "./ParsedGoalCard"
+      ],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/WorkspaceList.jsx",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/WorkspaceSummary.jsx",
+      "imports": [
+        "./workspaceUi"
+      ],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/components/workspaceUi.js",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/config.js",
+      "imports": [],
+      "http_calls": []
+    },
+    {
+      "file": "frontend/src/main.jsx",
+      "imports": [
+        "./App.jsx"
+      ],
+      "http_calls": []
+    }
+  ],
+  "matched_routes": [],
+  "summary": {
+    "files_with_http_calls": 0,
+    "matched_route_count": 0
+  }
+}

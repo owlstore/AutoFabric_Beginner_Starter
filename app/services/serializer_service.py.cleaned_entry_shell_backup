@@ -1,0 +1,152 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from app.models.artifact import Artifact
+from app.models.execution import Execution
+from app.models.outcome import Outcome
+from app.models.verification import Verification
+from app.models.goal import Goal
+
+
+def parse_json_like(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return value
+    return value
+
+
+def normalize_next_action(value: Any) -> dict[str, Any]:
+    data = parse_json_like(value)
+
+    if isinstance(data, dict):
+        if not isinstance(data.get("steps"), list):
+            data["steps"] = []
+        if "requires_human_confirmation" not in data:
+            data["requires_human_confirmation"] = False
+        if not data.get("summary"):
+            data["summary"] = "No next action summary."
+        if not data.get("step_type"):
+            data["step_type"] = None
+        return data
+
+    return {
+        "summary": str(value) if value else "No next action summary.",
+        "step_type": None,
+        "steps": [],
+        "requires_human_confirmation": False,
+    }
+
+
+def normalize_parsed_goal(parsed_goal: Any, raw_input: str = "") -> dict[str, Any]:
+    data = parse_json_like(parsed_goal)
+
+    if isinstance(data, dict):
+        parser_meta = data.get("parser_meta")
+        if not isinstance(parser_meta, dict):
+            data["parser_meta"] = {
+                "source": "unknown",
+                "llm_enabled": False,
+            }
+        if not data.get("source_text"):
+            data["source_text"] = raw_input
+        if not data.get("target"):
+            data["target"] = raw_input or "unspecified target"
+        if not data.get("scope"):
+            data["scope"] = "unspecified"
+        if not data.get("intent"):
+            data["intent"] = "general_task"
+        return data
+
+    return {
+        "intent": "general_task",
+        "scope": "unspecified",
+        "target": raw_input or "unspecified target",
+        "source_text": raw_input,
+        "parser_meta": {
+            "source": "unknown",
+            "llm_enabled": False,
+        },
+    }
+
+
+def serialize_goal(goal: Goal) -> dict[str, Any]:
+    parsed_goal = goal.parsed_goal or {}
+    return {
+        "id": goal.id,
+        "raw_input": goal.raw_input,
+        "parsed_goal": parsed_goal,
+        "goal_type": goal.goal_type,
+        "risk_level": goal.risk_level,
+        "parser_meta": parsed_goal.get("parser_meta"),
+        "created_at": goal.created_at,
+    }
+
+
+def serialize_outcome(outcome: Outcome | None) -> dict[str, Any] | None:
+    if not outcome:
+        return None
+
+    current_result = parse_json_like(outcome.current_result) or {}
+    if not isinstance(current_result, dict):
+        current_result = {
+            "stage": None,
+            "summary": str(current_result),
+        }
+
+    next_action = normalize_next_action(outcome.next_action)
+
+    return {
+        "id": outcome.id,
+        "goal_id": outcome.goal_id,
+        "title": outcome.title,
+        "status": outcome.status,
+        "current_result": current_result,
+        "next_action": next_action,
+        "risk_boundary": outcome.risk_boundary,
+        "created_at": outcome.created_at,
+        "updated_at": outcome.updated_at,
+    }
+
+
+def serialize_execution(execution: Execution) -> dict[str, Any]:
+    return {
+        "id": execution.id,
+        "outcome_id": execution.outcome_id,
+        "executor_name": execution.executor_name,
+        "task_name": execution.task_name,
+        "status": execution.status,
+        "input_payload": parse_json_like(execution.input_payload),
+        "output_payload": parse_json_like(execution.output_payload),
+        "started_at": execution.started_at,
+        "finished_at": execution.finished_at,
+        "created_at": execution.created_at,
+    }
+
+
+def serialize_artifact(artifact: Artifact) -> dict[str, Any]:
+    return {
+        "id": artifact.id,
+        "outcome_id": artifact.outcome_id,
+        "artifact_type": artifact.artifact_type,
+        "file_path": artifact.file_path,
+        "artifact_ref": artifact.artifact_ref,
+        "metadata": parse_json_like(getattr(artifact, "artifact_metadata", None)),
+        "created_at": artifact.created_at,
+    }
+
+
+def serialize_verification(verification: Verification) -> dict[str, Any]:
+    return {
+        "id": verification.id,
+        "outcome_id": verification.outcome_id,
+        "verifier_name": verification.verifier_name,
+        "status": verification.status,
+        "checks": parse_json_like(verification.checks),
+        "summary": parse_json_like(verification.summary),
+        "verified_at": verification.verified_at,
+        "created_at": verification.created_at,
+    }

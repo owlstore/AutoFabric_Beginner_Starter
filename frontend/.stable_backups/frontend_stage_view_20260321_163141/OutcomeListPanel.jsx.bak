@@ -1,0 +1,97 @@
+import SectionCard from "../common/SectionCard";
+import Badge from "../common/Badge";
+import QuickFilterChip from "../common/QuickFilterChip";
+import OutcomeListItem from "./OutcomeListItem";
+
+export default function OutcomeListPanel({
+  cards,
+  quickFilter,
+  setQuickFilter,
+  searchText,
+  setSearchText,
+  statusFilter,
+  setStatusFilter,
+  goalTypeFilter,
+  setGoalTypeFilter,
+  sortOrder,
+  setSortOrder,
+  activeCardId,
+  setActiveCardId,
+  loading = false,
+}) {
+  return (
+    <SectionCard
+      title="结果清单"
+      extra={<Badge tone="default">{loading ? "加载中..." : `${cards.length} 条 / ${cards.length} 条`}</Badge>}
+    >
+      <div className="space-y-3">
+        <div className="sticky top-0 z-10 -mx-1 rounded-2xl bg-white px-1 pb-3">
+          <div className="flex flex-wrap gap-2">
+            <QuickFilterChip active={quickFilter === "all"} onClick={() => setQuickFilter("all")}>全部</QuickFilterChip>
+            <QuickFilterChip active={quickFilter === "completed"} onClick={() => setQuickFilter("completed")}>已完成</QuickFilterChip>
+            <QuickFilterChip active={quickFilter === "running"} onClick={() => setQuickFilter("running")}>执行中</QuickFilterChip>
+            <QuickFilterChip active={quickFilter === "failed"} onClick={() => setQuickFilter("failed")}>失败</QuickFilterChip>
+            <QuickFilterChip active={quickFilter === "openclaw"} onClick={() => setQuickFilter("openclaw")}>OpenClaw</QuickFilterChip>
+          </div>
+
+          <input
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            placeholder="搜索标题/状态/结果/下一步"
+            className="mt-3 h-11 w-full rounded-2xl border border-slate-300 px-4 text-sm outline-none transition focus:border-slate-500"
+          />
+
+          <div className="mt-3 grid gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+            >
+              <option value="all">所有状态</option>
+              <option value="completed">已完成</option>
+              <option value="running">执行中</option>
+              <option value="failed">失败</option>
+            </select>
+
+            <select
+              value={goalTypeFilter}
+              onChange={(e) => setGoalTypeFilter(e.target.value)}
+              className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+            >
+              <option value="all">所有目标类型</option>
+              <option value="system_build">系统构建</option>
+              <option value="system_understanding">系统理解</option>
+            </select>
+
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+            >
+              <option value="updated_desc">更新：最新</option>
+              <option value="updated_asc">更新：最早</option>
+              <option value="title_asc">标题：A → Z</option>
+              <option value="title_desc">标题：Z → A</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="max-h-[980px] overflow-y-auto pr-1 space-y-3">
+          {cards.map((item) => (
+            <OutcomeListItem
+              key={`${item.goal_id}-${item.outcome_id}`}
+              item={item}
+              active={activeCardId === item.goal_id}
+              onClick={() => setActiveCardId(item.goal_id)}
+            />
+          ))}
+          {!loading && cards.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+              暂无结果。
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}

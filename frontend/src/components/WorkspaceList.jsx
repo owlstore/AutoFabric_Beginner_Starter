@@ -149,7 +149,12 @@ export default function WorkspaceList({ workspaceList, refreshWorkspace, isLoadi
 
                 <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <div style={{ fontSize: 11, color: "#666" }}>
-                    LLM：{item.parser_meta?.llm_enabled ? "已开启" : "未开启"}
+                    LLM：
+                    {item.parser_meta?.llm_enabled === true
+                      ? "已开启"
+                      : item.parser_meta?.llm_enabled === false
+                      ? "未开启"
+                      : "未知"}
                   </div>
                   {bottomBadges.map((badge, idx) => (
                     <Badge key={idx} badge={badge} />

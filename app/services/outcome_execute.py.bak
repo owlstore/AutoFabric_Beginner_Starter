@@ -1,0 +1,305 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.artifact import Artifact
+from app.models.execution import Execution
+from app.models.goal import Goal
+from app.models.outcome import Outcome
+from app.models.verification import Verification
+
+
+def _parse_json_like(value: Any) -> Any:
+    if isinstance(value, (dict, list)) or value is None:
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return value
+        try:
+            return json.loads(text)
+        except Exception:
+            return value
+    return value
+
+
+def _json_text(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _normalize_next_action(value: Any) -> dict[str, Any]:
+    parsed = _parse_json_like(value)
+    if isinstance(parsed, dict):
+        return parsed
+    if isinstance(parsed, str):
+        return {
+            "summary": parsed,
+            "step_type": None,
+            "steps": [],
+            "requires_human_confirmation": False,
+        }
+    return {
+        "summary": None,
+        "step_type": None,
+        "steps": [],
+        "requires_human_confirmation": False,
+    }
+
+
+def _serialize_goal(goal: Goal | None) -> dict[str, Any] | None:
+    if not goal:
+        return None
+
+    parsed_goal = _parse_json_like(goal.parsed_goal)
+    parser_meta = parsed_goal.get("parser_meta") if isinstance(parsed_goal, dict) else None
+
+    return {
+        "id": goal.id,
+        "raw_input": goal.raw_input,
+        "parsed_goal": parsed_goal,
+        "goal_type": goal.goal_type,
+        "risk_level": goal.risk_level,
+        "parser_meta": parser_meta,
+        "created_at": goal.created_at,
+    }
+
+
+def _serialize_outcome(outcome: Outcome | None) -> dict[str, Any] | None:
+    if not outcome:
+        return None
+
+    return {
+        "id": outcome.id,
+        "goal_id": outcome.goal_id,
+        "title": outcome.title,
+        "status": outcome.status,
+        "current_result": _parse_json_like(outcome.current_result) or {},
+        "next_action": _normalize_next_action(outcome.next_action),
+        "risk_boundary": outcome.risk_boundary,
+        "created_at": outcome.created_at,
+        "updated_at": outcome.updated_at,
+    }
+
+
+def _get_goal(db: Session, goal_id: int) -> Goal | None:
+    return db.execute(
+        select(Goal).where(Goal.id == goal_id)
+    ).scalars().first()
+
+
+def _get_outcome(db: Session, outcome_id: int) -> Outcome | None:
+    return db.execute(
+        select(Outcome).where(Outcome.id == outcome_id)
+    ).scalars().first()
+
+
+def _get_latest_execution(db: Session, outcome_id: int) -> Execution | None:
+    return db.execute(
+        select(Execution)
+        .where(Execution.outcome_id == outcome_id)
+        .order_by(Execution.id.desc())
+        .limit(1)
+    ).scalars().first()
+
+
+def _get_latest_artifact(db: Session, outcome_id: int) -> Artifact | None:
+    return db.execute(
+        select(Artifact)
+        .where(Artifact.outcome_id == outcome_id)
+        .order_by(Artifact.id.desc())
+        .limit(1)
+    ).scalars().first()
+
+
+def _get_latest_verification(db: Session, outcome_id: int) -> Verification | None:
+    return db.execute(
+        select(Verification)
+        .where(Verification.outcome_id == outcome_id)
+        .order_by(Verification.id.desc())
+        .limit(1)
+    ).scalars().first()
+
+
+def _has_completed_build_result(
+    outcome: Outcome,
+    execution: Execution | None,
+    artifact: Artifact | None,
+    verification: Verification | None,
+) -> bool:
+    current_result = _parse_json_like(outcome.current_result) or {}
+
+    return (
+        outcome.status == "completed"
+        and execution is not None
+        and artifact is not None
+        and verification is not None
+        and execution.status == "completed"
+        and verification.status == "passed"
+        and bool(current_result.get("artifact"))
+        and bool(current_result.get("verification"))
+    )
+
+
+def _build_workspace_payload(db: Session, outcome: Outcome) -> dict[str, Any]:
+    goal = _get_goal(db, outcome.goal_id)
+    latest_outcome = _get_outcome(db, outcome.id)
+
+    return {
+        "goal": _serialize_goal(goal),
+        "latest_outcome": _serialize_outcome(latest_outcome),
+    }
+
+
+def execute_outcome_build(db: Session, outcome_id: int) -> dict[str, Any]:
+    outcome = _get_outcome(db, outcome_id)
+    if not outcome:
+        return {"detail": f"Outcome {outcome_id} not found"}
+
+    goal = _get_goal(db, outcome.goal_id)
+    if not goal:
+        return {"detail": f"Goal {outcome.goal_id} not found"}
+
+    existing_execution = _get_latest_execution(db, outcome_id)
+    existing_artifact = _get_latest_artifact(db, outcome_id)
+    existing_verification = _get_latest_verification(db, outcome_id)
+
+    # 幂等保护：如果已经完整完成，则直接返回已有结果，不重复插入
+    if _has_completed_build_result(
+        outcome,
+        existing_execution,
+        existing_artifact,
+        existing_verification,
+    ):
+        image_tag = (
+            existing_artifact.artifact_ref
+            if existing_artifact and existing_artifact.artifact_ref
+            else f"autofabric-outcome-{outcome_id}:latest"
+        )
+        artifact_dir = ".autofabric_runs/outcome_{outcome_id}".format(outcome_id=outcome_id)
+
+        return {
+            "execution": {
+                "ok": True,
+                "goal_id": goal.id,
+                "outcome_id": outcome.id,
+                "image_tag": image_tag,
+                "artifact_dir": artifact_dir,
+                "message": "Execution already completed. Returned existing result.",
+                "idempotent": True,
+            },
+            "workspace": _build_workspace_payload(db, outcome),
+        }
+
+    image_tag = f"autofabric-outcome-{outcome_id}:latest"
+    artifact_dir = f".autofabric_runs/outcome_{outcome_id}"
+    now = datetime.utcnow()
+
+    execution_input = {
+        "target": goal.raw_input,
+        "image_tag": image_tag,
+    }
+    execution_output = {
+        "returncode": 0,
+        "artifact_dir": artifact_dir,
+        "message": "Simulated execution completed.",
+    }
+
+    execution = Execution(
+        outcome_id=outcome.id,
+        executor_name="docker_worker",
+        task_name="docker_build_environment",
+        status="completed",
+        input_payload=_json_text(execution_input),
+        output_payload=_json_text(execution_output),
+        started_at=None,
+        finished_at=None,
+    )
+    db.add(execution)
+    db.flush()
+
+    artifact_metadata = {
+        "image_tag": image_tag,
+        "artifact_dir": artifact_dir,
+    }
+    artifact = Artifact(
+        outcome_id=outcome.id,
+        artifact_type="docker_image",
+        file_path=artifact_dir,
+        artifact_ref=image_tag,
+        artifact_metadata=_json_text(artifact_metadata),
+    )
+    db.add(artifact)
+    db.flush()
+
+    verification_checks = [
+        {
+            "ok": True,
+            "name": "simulated_check",
+            "stdout": "Simulated verification passed.",
+            "stderr": "",
+            "returncode": 0,
+        }
+    ]
+    verification_summary = {
+        "status": "passed",
+        "image_tag": image_tag,
+    }
+    verification = Verification(
+        outcome_id=outcome.id,
+        verifier_name="docker_verify",
+        status="passed",
+        checks=_json_text(verification_checks),
+        summary=_json_text(verification_summary),
+        verified_at=None,
+    )
+    db.add(verification)
+    db.flush()
+
+    outcome.status = "completed"
+    outcome.current_result = {
+        "stage": "verification_completed",
+        "summary": "Execution and verification completed.",
+        "artifact": {
+            "type": "docker_image",
+            "image_tag": image_tag,
+            "artifact_dir": artifact_dir,
+        },
+        "verification": {
+            "status": "passed",
+            "image_tag": image_tag,
+        },
+    }
+    outcome.next_action = _json_text(
+        {
+            "summary": "Verification passed. The outcome is ready.",
+            "step_type": "completed",
+            "steps": [
+                "Review execution evidence.",
+                "Review artifact metadata.",
+                "Review verification result.",
+            ],
+            "requires_human_confirmation": False,
+        }
+    )
+
+    db.add(outcome)
+    db.commit()
+    db.refresh(outcome)
+
+    return {
+        "execution": {
+            "ok": True,
+            "goal_id": goal.id,
+            "outcome_id": outcome.id,
+            "image_tag": image_tag,
+            "artifact_dir": artifact_dir,
+            "message": "Execution completed.",
+            "idempotent": False,
+        },
+        "workspace": _build_workspace_payload(db, outcome),
+    }

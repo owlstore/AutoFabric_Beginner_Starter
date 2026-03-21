@@ -1,0 +1,12 @@
+{
+  "status": "accepted",
+  "provider": "openclaw",
+  "mode": "bridge_placeholder",
+  "message": "OpenClaw bridge placeholder accepted the task.",
+  "skill_name": "ping",
+  "received_payload": {
+    "message": "hello from autofabric"
+  },
+  "note": "当前先以本地桥接占位方式通过验证；后续再把真实 OpenClaw 调用接到这里。",
+  "executed_at": "2026-03-21T08:17:05.705499Z"
+}

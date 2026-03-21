@@ -19,7 +19,12 @@ export default function WorkspaceSummary({ workspace }) {
                 return <div style={badge.style}>{badge.label}</div>;
               })()}
               <div style={{ fontSize: 12, color: "#666" }}>
-                LLM：{workspace.goal?.parser_meta?.llm_enabled ? "已开启" : "未开启"}
+                LLM：
+                {workspace.goal?.parser_meta?.llm_enabled === true
+                  ? "已开启"
+                  : workspace.goal?.parser_meta?.llm_enabled === false
+                  ? "未开启"
+                  : "未知"}
               </div>
             </div>
           </div>

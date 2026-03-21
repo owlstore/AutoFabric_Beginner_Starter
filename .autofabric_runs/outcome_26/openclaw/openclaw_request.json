@@ -1,0 +1,24 @@
+{
+  "task_name": "inspect_order_submission_ui",
+  "payload": {
+    "goal_id": 41,
+    "outcome_id": 26,
+    "goal_type": "system_understanding",
+    "goal_text": "Analyze this order dashboard service",
+    "parsed_goal": {
+      "scope": "backend",
+      "intent": "understand_system",
+      "target": "Analyze this order dashboard service",
+      "parser_meta": {
+        "source": "rules_fallback",
+        "llm_enabled": true
+      },
+      "source_text": "Analyze this order dashboard service"
+    },
+    "url": "https://example.com/orders",
+    "issue": "submit button not working",
+    "account_hint": "demo_user"
+  },
+  "outcome_id": 26,
+  "executed_at": "2026-03-20T17:20:28.477377Z"
+}

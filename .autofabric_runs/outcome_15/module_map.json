@@ -1,0 +1,130 @@
+{
+  "project_path": "/Users/kim/Desktop/AutoFabric_Beginner_Starter",
+  "architecture": {
+    "backend_present": true,
+    "frontend_present": true,
+    "migration_present": true,
+    "tests_present": true
+  },
+  "backend": {
+    "entrypoints": [
+      "app/main.py",
+      "app/api/main.py"
+    ],
+    "api_files": [
+      "app/api/__init__.py",
+      "app/api/main.py",
+      "app/api/schemas/__init__.py"
+    ],
+    "schema_files": [
+      "app/schemas/action_execute.py",
+      "app/schemas/entry_import.py",
+      "app/schemas/entry_start.py",
+      "app/schemas/entry_submit.py",
+      "app/schemas/goal_parse.py",
+      "app/schemas/goal_quick_create.py",
+      "app/schemas/goal_quick_start.py",
+      "app/schemas/openclaw_executor.py",
+      "app/schemas/outcome.py",
+      "app/schemas/outcome_progress.py"
+    ],
+    "service_files": [
+      "app/services/__init__.py",
+      "app/services/action_executor.py",
+      "app/services/action_panel_builder.py",
+      "app/services/api_map_service.py",
+      "app/services/api_report_service.py",
+      "app/services/architecture_report_service.py",
+      "app/services/data_model_map_service.py",
+      "app/services/data_model_report_service.py",
+      "app/services/entity_relation_service.py",
+      "app/services/execution_hint_builder.py",
+      "app/services/execution_record_service.py",
+      "app/services/executor_bootstrap.py",
+      "app/services/executor_event_writer.py",
+      "app/services/executor_registry.py",
+      "app/services/executor_result_sync.py",
+      "app/services/goal_parser.py",
+      "app/services/goal_service.py",
+      "app/services/import_context_builder.py",
+      "app/services/integration_map_service.py",
+      "app/services/integration_report_service.py",
+      "app/services/llm_goal_parser.py",
+      "app/services/module_map_service.py",
+      "app/services/module_report_service.py",
+      "app/services/openclaw_worker.py",
+      "app/services/outcome_execute.py",
+      "app/services/outcome_orchestrator.py",
+      "app/services/outcome_service.py",
+      "app/services/outcome_verify.py",
+      "app/services/recommended_actions_builder.py",
+      "app/services/rule_core.py",
+      "app/services/system_diagram_service.py",
+      "app/services/understanding_execute.py",
+      "app/services/understanding_report_service.py",
+      "app/services/workspace_service.py"
+    ],
+    "executor_files": [
+      "app/executors/build_executor.py",
+      "app/executors/openclaw_executor.py",
+      "app/executors/understanding_executor.py"
+    ],
+    "verifier_files": [
+      "app/verifiers/docker_verifier.py",
+      "app/verifiers/understanding_verifier.py"
+    ],
+    "model_files": [
+      "app/models/artifact.py",
+      "app/models/base.py",
+      "app/models/entities.py",
+      "app/models/execution.py",
+      "app/models/flow_event.py",
+      "app/models/goal.py",
+      "app/models/outcome.py",
+      "app/models/verification.py"
+    ],
+    "db_files": [
+      "app/db/database.py"
+    ],
+    "core_files": [
+      "app/core/config.py",
+      "app/core/db.py"
+    ],
+    "util_files": [
+      "app/utils/flow_event_serializer.py",
+      "app/utils/outcome_serializer.py"
+    ]
+  },
+  "frontend": {
+    "entrypoints": [
+      "frontend/src/main.jsx",
+      "frontend/src/App.jsx",
+      "frontend/index.html"
+    ],
+    "api_files": [
+      "frontend/src/api/client.js"
+    ],
+    "adapter_files": [
+      "frontend/src/adapters/workspaceAdapter.js"
+    ],
+    "component_files": [
+      "frontend/src/components/ActionPanel.jsx",
+      "frontend/src/components/EntryForm.jsx",
+      "frontend/src/components/ExecutorPanel.jsx",
+      "frontend/src/components/GoalsListPanel.jsx",
+      "frontend/src/components/HeaderStatusBar.jsx",
+      "frontend/src/components/OutcomesListPanel.jsx",
+      "frontend/src/components/ParsedGoalCard.jsx",
+      "frontend/src/components/StatusMessage.jsx",
+      "frontend/src/components/WorkspaceDetails.jsx",
+      "frontend/src/components/WorkspaceList.jsx",
+      "frontend/src/components/WorkspaceSummary.jsx",
+      "frontend/src/components/workspaceUi.js"
+    ],
+    "config_files": [
+      "frontend/package.json",
+      "frontend/src/config.js",
+      "frontend/vite.config.js"
+    ]
+  }
+}

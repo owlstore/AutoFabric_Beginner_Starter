@@ -1,0 +1,972 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  loadOutcomeWorkbenchList,
+  loadOutcomeWorkbenchDetail,
+  loadOutcomeTimeline,
+  submitEntry,
+  triggerOutcomeExecute,
+} from "./api/client";
+import {
+  adaptWorkspaceDetailToOutcomeDetail,
+  adaptWorkspaceListToOutcomeCards,
+} from "./adapters/outcomeAdapter";
+import {
+  OPENCLAW_TEMPLATES,
+  getOpenclawTemplateById,
+} from "./config/openclawTemplates";
+import { getRecommendedOpenclawTemplate } from "./utils/openclawRecommendation";
+
+function Badge({ children, tone = "default" }) {
+  const toneClass = {
+    default: "bg-slate-100 text-slate-700 border-slate-200",
+    success: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    warning: "bg-amber-50 text-amber-700 border-amber-200",
+    danger: "bg-red-50 text-red-700 border-red-200",
+    info: "bg-blue-50 text-blue-700 border-blue-200",
+    purple: "bg-violet-50 text-violet-700 border-violet-200",
+  }[tone] || "bg-slate-100 text-slate-700 border-slate-200";
+
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${toneClass}`}>
+      {children}
+    </span>
+  );
+}
+
+function SectionCard({ title, extra, children }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+        {extra ? <div>{extra}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function KV({ label, value }) {
+  const display =
+    value === null || value === undefined || value === "" ? "—" : String(value);
+
+  return (
+    <div className="grid grid-cols-[140px_1fr] gap-3 py-1.5">
+      <div className="text-sm text-slate-500">{label}</div>
+      <div className="break-all text-sm text-slate-900">{display}</div>
+    </div>
+  );
+}
+
+function JsonBlock({ data }) {
+  return (
+    <pre className="max-h-[360px] overflow-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-100">
+      {JSON.stringify(data ?? {}, null, 2)}
+    </pre>
+  );
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return String(value);
+  }
+}
+
+function getToneByStatus(status) {
+  if (!status) return "default";
+  const s = String(status).toLowerCase();
+
+  if (["ready", "completed", "passed", "success"].includes(s)) return "success";
+  if (["failed", "error"].includes(s)) return "danger";
+  if (["building", "running", "in_progress", "verifying"].includes(s)) return "info";
+  if (["draft", "parsed", "pending"].includes(s)) return "warning";
+
+  return "default";
+}
+
+function truncateText(value, max = 120) {
+  const text = value ? String(value) : "—";
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}...`;
+}
+
+function verifyText(verification) {
+  if (!verification) return "No verification yet";
+  if (verification.note) return verification.note;
+  if (verification.status) return `Status: ${verification.status}`;
+  if (verification.critical_failed !== undefined) {
+    return verification.critical_failed ? "Verification has failures" : "Verification passed";
+  }
+  return "Verification available";
+}
+
+function MetricCard({ label, value, tone = "default" }) {
+  const toneClass = {
+    default: "border-slate-200 bg-white",
+    success: "border-emerald-200 bg-emerald-50",
+    warning: "border-amber-200 bg-amber-50",
+    danger: "border-red-200 bg-red-50",
+    info: "border-blue-200 bg-blue-50",
+    purple: "border-violet-200 bg-violet-50",
+  }[tone] || "border-slate-200 bg-white";
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="text-xs uppercase tracking-wide text-slate-500">{label}</div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">{value}</div>
+    </div>
+  );
+}
+
+function OutcomeListItem({ item, active, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full rounded-3xl border p-4 text-left transition ${
+        active
+          ? "border-slate-900 bg-slate-50 shadow-sm"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+      }`}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate text-base font-semibold text-slate-900">{item.title}</div>
+          <div className="mt-1 text-xs text-slate-500">
+            Outcome #{item.outcome_id ?? "pending"} · Goal #{item.goal_id}
+          </div>
+        </div>
+        <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
+      </div>
+
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Badge tone="purple">{item.goal_type || "unknown"}</Badge>
+        <Badge tone={getToneByStatus(item.stage)}>{item.stage || "unknown"}</Badge>
+        <Badge tone="default">{item.scope || "unspecified"}</Badge>
+      </div>
+
+      <div className="space-y-3">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
+            Current Result
+          </div>
+          <div className="text-sm text-slate-800">
+            {truncateText(item.current_result_summary, 110)}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-3">
+          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
+            Next Action
+          </div>
+          <div className="text-sm text-slate-800">
+            {truncateText(item.next_action_summary, 90)}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="truncate">
+          {truncateText(verifyText(item.verification_summary), 48)}
+        </div>
+        <div className="shrink-0">{formatDate(item.updated_at)}</div>
+      </div>
+    </button>
+  );
+}
+
+function TimelineList({ items }) {
+  if (!items?.length) {
+    return <div className="text-sm text-slate-500">No flow events yet.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((event) => (
+        <div key={event.id} className="rounded-2xl border border-slate-200 p-4">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <Badge tone="purple">{event.trigger_type}</Badge>
+            <Badge tone={getToneByStatus(event.to_status)}>{event.to_status}</Badge>
+          </div>
+          <div className="text-sm text-slate-700">{event.note || "—"}</div>
+          <div className="mt-2 text-xs text-slate-500">
+            event_id={event.id} · outcome_id={event.outcome_id} · created_at={formatDate(event.created_at)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExecutionList({ items }) {
+  if (!items?.length) {
+    return <div className="text-sm text-slate-500">No execution records yet.</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
+            <Badge tone="info">{item.executor_name || "executor"}</Badge>
+            <Badge tone="default">{item.task_name || "task"}</Badge>
+          </div>
+
+          <KV label="Started" value={formatDate(item.started_at)} />
+          <KV label="Finished" value={formatDate(item.finished_at)} />
+          <KV label="Created" value={formatDate(item.created_at)} />
+
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">Input</div>
+              <JsonBlock data={item.input_payload} />
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">Output</div>
+              <JsonBlock data={item.output_payload} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ArtifactList({ items }) {
+  if (!items?.length) {
+    return <div className="text-sm text-slate-500">No artifact records yet.</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Badge tone="success">{item.artifact_type || "artifact"}</Badge>
+            <Badge tone="default">{item.artifact_ref || "artifact"}</Badge>
+          </div>
+
+          <KV label="File Path" value={item.file_path} />
+          <KV label="Created" value={formatDate(item.created_at)} />
+
+          <div className="mt-3">
+            <div className="mb-2 text-sm font-medium text-slate-700">Metadata</div>
+            <JsonBlock data={item.metadata} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function VerificationList({ items }) {
+  if (!items?.length) {
+    return <div className="text-sm text-slate-500">No verification records yet.</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Badge tone={getToneByStatus(item.status)}>{item.status}</Badge>
+            <Badge tone="info">{item.verifier_name || "verifier"}</Badge>
+          </div>
+
+          <KV label="Verified At" value={formatDate(item.verified_at)} />
+          <KV label="Created" value={formatDate(item.created_at)} />
+
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">Summary</div>
+              <JsonBlock data={item.summary} />
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-medium text-slate-700">Checks</div>
+              <JsonBlock data={item.checks} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function OpenClawPanel({
+  selectedTemplateId,
+  setSelectedTemplateId,
+  openclawUrl,
+  setOpenclawUrl,
+  openclawIssue,
+  setOpenclawIssue,
+  openclawAccountHint,
+  setOpenclawAccountHint,
+  onExecute,
+  onApplySuggested,
+  executing,
+  disabled,
+  currentTemplate,
+  latestOpenclawSummary,
+  suggestedTemplate,
+}) {
+  return (
+    <SectionCard
+      title="OpenClaw Executor"
+      extra={<Badge tone="purple">Browser Executor</Badge>}
+    >
+      <div className="grid gap-4">
+        {suggestedTemplate ? (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <Badge tone="purple">Suggested Next Template</Badge>
+              <Badge tone="info">{suggestedTemplate.templateId}</Badge>
+            </div>
+            <div className="text-sm text-slate-700">{suggestedTemplate.reason}</div>
+            <button
+              onClick={onApplySuggested}
+              className="mt-3 rounded-xl border border-violet-300 bg-white px-4 py-2 text-sm font-medium text-violet-700 hover:bg-violet-100"
+            >
+              Apply Suggested Template
+            </button>
+          </div>
+        ) : null}
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">Task Template</label>
+          <select
+            value={selectedTemplateId}
+            onChange={(e) => setSelectedTemplateId(e.target.value)}
+            className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+          >
+            {OPENCLAW_TEMPLATES.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <div className="text-xs text-slate-500">{currentTemplate.description}</div>
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">Target URL</label>
+          <input
+            value={openclawUrl}
+            onChange={(e) => setOpenclawUrl(e.target.value)}
+            placeholder="https://example.com/orders"
+            className="h-11 rounded-2xl border border-slate-300 px-4 text-sm outline-none transition focus:border-slate-500"
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">Issue</label>
+          <textarea
+            value={openclawIssue}
+            onChange={(e) => setOpenclawIssue(e.target.value)}
+            placeholder="Describe the browser/UI issue to inspect..."
+            rows={3}
+            className="rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none transition focus:border-slate-500"
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">Account Hint</label>
+          <input
+            value={openclawAccountHint}
+            onChange={(e) => setOpenclawAccountHint(e.target.value)}
+            placeholder="demo_user"
+            className="h-11 rounded-2xl border border-slate-300 px-4 text-sm outline-none transition focus:border-slate-500"
+          />
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          This sends <code>executor_type=openclaw</code>, <code>task_name</code>, and
+          structured payload into the backend OpenClaw branch, then refreshes
+          executions, artifacts, verifications, and flow events.
+        </div>
+
+        {latestOpenclawSummary ? (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Badge tone="purple">Latest OpenClaw Result</Badge>
+              <Badge tone={getToneByStatus(latestOpenclawSummary.status)}>
+                {latestOpenclawSummary.status || "unknown"}
+              </Badge>
+            </div>
+            <div className="text-sm text-slate-700">
+              {latestOpenclawSummary.message || "No latest OpenClaw message."}
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={onExecute}
+            disabled={executing || disabled}
+            className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {executing ? "Executing OpenClaw..." : "Execute with OpenClaw"}
+          </button>
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
+export default function App() {
+  const [input, setInput] = useState(
+    "Build an Ubuntu 22.04 development environment with Docker Git Python"
+  );
+  const [cards, setCards] = useState([]);
+  const [selectedGoalId, setSelectedGoalId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [timeline, setTimeline] = useState([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [goalTypeFilter, setGoalTypeFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("updated_desc");
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState(
+    OPENCLAW_TEMPLATES[0].id
+  );
+  const [openclawUrl, setOpenclawUrl] = useState(OPENCLAW_TEMPLATES[0].defaults.url);
+  const [openclawIssue, setOpenclawIssue] = useState(OPENCLAW_TEMPLATES[0].defaults.issue);
+  const [openclawAccountHint, setOpenclawAccountHint] = useState(
+    OPENCLAW_TEMPLATES[0].defaults.account_hint
+  );
+  const [openclawActing, setOpenclawActing] = useState(false);
+
+  const currentTemplate = useMemo(
+    () => getOpenclawTemplateById(selectedTemplateId),
+    [selectedTemplateId]
+  );
+
+  const suggestedTemplate = useMemo(
+    () => getRecommendedOpenclawTemplate(detail),
+    [detail]
+  );
+
+  const filteredCards = useMemo(() => {
+    let result = [...cards];
+
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      result = result.filter((item) => {
+        return [
+          item.title,
+          item.status,
+          item.goal_type,
+          item.current_result_summary,
+          item.next_action_summary,
+        ]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+      });
+    }
+
+    if (statusFilter !== "all") {
+      result = result.filter(
+        (item) => String(item.status || "").toLowerCase() === statusFilter
+      );
+    }
+
+    if (goalTypeFilter !== "all") {
+      result = result.filter(
+        (item) => String(item.goal_type || "").toLowerCase() === goalTypeFilter
+      );
+    }
+
+    result.sort((a, b) => {
+      if (sortOrder === "title_asc") {
+        return String(a.title || "").localeCompare(String(b.title || ""));
+      }
+      if (sortOrder === "title_desc") {
+        return String(b.title || "").localeCompare(String(a.title || ""));
+      }
+
+      const ta = new Date(a.updated_at || 0).getTime();
+      const tb = new Date(b.updated_at || 0).getTime();
+
+      if (sortOrder === "updated_asc") return ta - tb;
+      return tb - ta;
+    });
+
+    return result;
+  }, [cards, searchText, statusFilter, goalTypeFilter, sortOrder]);
+
+  const activeCard = useMemo(() => {
+    return (
+      filteredCards.find((item) => item.goal_id === selectedGoalId) ||
+      cards.find((item) => item.goal_id === selectedGoalId) ||
+      filteredCards[0] ||
+      cards[0] ||
+      null
+    );
+  }, [filteredCards, cards, selectedGoalId]);
+
+  const statusOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(cards.map((item) => String(item.status || "unknown").toLowerCase()))
+    );
+    return ["all", ...values];
+  }, [cards]);
+
+  const goalTypeOptions = useMemo(() => {
+    const values = Array.from(
+      new Set(cards.map((item) => String(item.goal_type || "unknown").toLowerCase()))
+    );
+    return ["all", ...values];
+  }, [cards]);
+
+  const metrics = useMemo(() => {
+    const total = cards.length;
+    const completed = cards.filter((x) =>
+      ["completed", "ready", "passed", "success"].includes(
+        String(x.status || "").toLowerCase()
+      )
+    ).length;
+    const running = cards.filter((x) =>
+      ["building", "running", "in_progress", "verifying"].includes(
+        String(x.status || "").toLowerCase()
+      )
+    ).length;
+    const failed = cards.filter((x) =>
+      ["failed", "error"].includes(String(x.status || "").toLowerCase())
+    ).length;
+
+    return { total, completed, running, failed };
+  }, [cards]);
+
+  const activeOutcomeId = detail?.latest_outcome?.id || activeCard?.outcome_id || null;
+
+  const latestOpenclawSummary = useMemo(() => {
+    const executions = detail?.executions || [];
+    const latest = executions.find((item) => item.executor_name === "openclaw");
+    if (!latest) return null;
+
+    return {
+      status: latest.status,
+      task_name: latest.task_name,
+      message:
+        latest.output_payload?.stdout?.message ||
+        latest.output_payload?.message ||
+        `OpenClaw task ${latest.task_name} finished with status ${latest.status}.`,
+    };
+  }, [detail]);
+
+  async function reloadList(preferredGoalId = null) {
+    try {
+      setLoadingList(true);
+      setError("");
+
+      const data = await loadOutcomeWorkbenchList();
+      const items = adaptWorkspaceListToOutcomeCards(data.items || []);
+      setCards(items);
+
+      const nextGoalId =
+        preferredGoalId ||
+        (items.some((x) => x.goal_id === selectedGoalId) ? selectedGoalId : items[0]?.goal_id) ||
+        null;
+
+      setSelectedGoalId(nextGoalId);
+    } catch (err) {
+      setError(err.message || "Failed to load outcome list.");
+    } finally {
+      setLoadingList(false);
+    }
+  }
+
+  async function reloadDetail(goalId) {
+    if (!goalId) {
+      setDetail(null);
+      return;
+    }
+
+    try {
+      setLoadingDetail(true);
+      setError("");
+
+      const data = await loadOutcomeWorkbenchDetail(goalId);
+      setDetail(adaptWorkspaceDetailToOutcomeDetail(data));
+    } catch (err) {
+      setDetail(null);
+      setError(err.message || "Failed to load outcome detail.");
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  async function reloadTimeline(outcomeId) {
+    if (!outcomeId) {
+      setTimeline([]);
+      return;
+    }
+
+    try {
+      const data = await loadOutcomeTimeline(outcomeId);
+      setTimeline(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setTimeline([]);
+      setError(err.message || "Failed to load timeline.");
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    try {
+      setSubmitting(true);
+      setError("");
+      await submitEntry({ user_input: input.trim() });
+      await reloadList();
+    } catch (err) {
+      setError(err.message || "Submit failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleExecute() {
+    if (!activeOutcomeId) return;
+
+    try {
+      setActing(true);
+      setError("");
+      await triggerOutcomeExecute(activeOutcomeId);
+      await reloadList(selectedGoalId);
+      await reloadDetail(selectedGoalId);
+      await reloadTimeline(activeOutcomeId);
+    } catch (err) {
+      setError(err.message || "Execute failed.");
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function handleOpenClawExecute() {
+    if (!activeOutcomeId) return;
+
+    try {
+      setOpenclawActing(true);
+      setError("");
+
+      await triggerOutcomeExecute(activeOutcomeId, {
+        executor_type: "openclaw",
+        task_name: currentTemplate.task_name,
+        payload: {
+          url: openclawUrl,
+          issue: openclawIssue,
+          account_hint: openclawAccountHint,
+        },
+      });
+
+      await reloadList(selectedGoalId);
+      await reloadDetail(selectedGoalId);
+      await reloadTimeline(activeOutcomeId);
+    } catch (err) {
+      setError(err.message || "OpenClaw execute failed.");
+    } finally {
+      setOpenclawActing(false);
+    }
+  }
+
+  function handleApplySuggestedTemplate() {
+    if (!suggestedTemplate?.templateId) return;
+    setSelectedTemplateId(suggestedTemplate.templateId);
+  }
+
+  useEffect(() => {
+    reloadList();
+  }, []);
+
+  useEffect(() => {
+    const tpl = getOpenclawTemplateById(selectedTemplateId);
+    setOpenclawUrl(tpl.defaults.url || "");
+    setOpenclawIssue(tpl.defaults.issue || "");
+    setOpenclawAccountHint(tpl.defaults.account_hint || "");
+  }, [selectedTemplateId]);
+
+  useEffect(() => {
+    if (activeCard?.goal_id && activeCard.goal_id !== selectedGoalId) {
+      setSelectedGoalId(activeCard.goal_id);
+    }
+  }, [activeCard?.goal_id]);
+
+  useEffect(() => {
+    if (selectedGoalId) {
+      reloadDetail(selectedGoalId);
+    }
+  }, [selectedGoalId]);
+
+  useEffect(() => {
+    if (detail?.latest_outcome?.id) {
+      reloadTimeline(detail.latest_outcome.id);
+    } else if (activeCard?.outcome_id) {
+      reloadTimeline(activeCard.outcome_id);
+    } else {
+      setTimeline([]);
+    }
+  }, [detail?.latest_outcome?.id, activeCard?.outcome_id]);
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="mx-auto max-w-[1680px] px-4 py-6 lg:px-6">
+        <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                AutoFabric Outcome Workbench
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Goal → Outcome → Execute → Flow Events → Evidence
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="success">Outcome-Centered</Badge>
+              <Badge tone="info">Audit Trail Ready</Badge>
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_auto]">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Describe the outcome you want to build..."
+              className="h-12 rounded-2xl border border-slate-300 px-4 text-sm outline-none transition focus:border-slate-500"
+            />
+            <button
+              type="submit"
+              disabled={submitting}
+              className="h-12 rounded-2xl bg-slate-900 px-5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? "Submitting..." : "Submit Goal"}
+            </button>
+          </form>
+
+          {error ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Total Outcomes" value={metrics.total} />
+          <MetricCard label="Completed" value={metrics.completed} tone="success" />
+          <MetricCard label="Running" value={metrics.running} tone="info" />
+          <MetricCard label="Failed" value={metrics.failed} tone="danger" />
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <SectionCard
+              title="Outcome List"
+              extra={
+                <Badge tone="default">
+                  {loadingList ? "Loading..." : `${filteredCards.length}/${cards.length}`}
+                </Badge>
+              }
+            >
+              <div className="space-y-3">
+                <input
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="Search title / status / result / next action"
+                  className="h-11 w-full rounded-2xl border border-slate-300 px-4 text-sm outline-none transition focus:border-slate-500"
+                />
+
+                <div className="grid gap-3">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+                  >
+                    {statusOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item === "all" ? "All Status" : item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={goalTypeFilter}
+                    onChange={(e) => setGoalTypeFilter(e.target.value)}
+                    className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+                  >
+                    {goalTypeOptions.map((item) => (
+                      <option key={item} value={item}>
+                        {item === "all" ? "All Goal Types" : item}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+                  >
+                    <option value="updated_desc">Updated: Newest</option>
+                    <option value="updated_asc">Updated: Oldest</option>
+                    <option value="title_asc">Title: A → Z</option>
+                    <option value="title_desc">Title: Z → A</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  {filteredCards.map((item) => (
+                    <OutcomeListItem
+                      key={item.goal_id}
+                      item={item}
+                      active={activeCard?.goal_id === item.goal_id}
+                      onClick={() => setSelectedGoalId(item.goal_id)}
+                    />
+                  ))}
+
+                  {!filteredCards.length ? (
+                    <div className="rounded-2xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500">
+                      No outcomes matched current filters.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="space-y-6">
+            {!detail ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+                {loadingDetail ? "Loading outcome detail..." : "No outcome selected."}
+              </div>
+            ) : (
+              <>
+                <SectionCard
+                  title="Outcome Overview"
+                  extra={
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => reloadList(selectedGoalId)}
+                        className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                      >
+                        Refresh
+                      </button>
+                      <button
+                        onClick={handleExecute}
+                        disabled={acting || !activeOutcomeId}
+                        className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {acting ? "Executing..." : "Execute"}
+                      </button>
+                    </div>
+                  }
+                >
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    <Badge tone="purple">{detail.goal.goal_type || "unknown"}</Badge>
+                    <Badge tone={getToneByStatus(detail.outcome_view.status)}>
+                      {detail.outcome_view.status}
+                    </Badge>
+                    <Badge tone={getToneByStatus(detail.summary.latest_stage)}>
+                      {detail.summary.latest_stage || "unknown"}
+                    </Badge>
+                    <Badge tone={getToneByStatus(detail.goal.risk_level)}>
+                      {detail.goal.risk_level || "unknown"}
+                    </Badge>
+                  </div>
+
+                  <KV label="Goal ID" value={detail.goal.id} />
+                  <KV label="Outcome ID" value={detail.latest_outcome?.id} />
+                  <KV label="Title" value={detail.outcome_view.title} />
+                  <KV label="User Goal" value={detail.goal.raw_input} />
+                  <KV label="Current Result" value={detail.outcome_view.current_result_summary} />
+                  <KV label="Next Action" value={detail.outcome_view.next_action_summary} />
+                  <KV label="Updated" value={formatDate(detail.outcome_view.updated_at)} />
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-slate-700">
+                        Verification Summary
+                      </div>
+                      <JsonBlock data={detail.outcome_view.verification_summary} />
+                    </div>
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-slate-700">
+                        Risk Boundary
+                      </div>
+                      <JsonBlock data={detail.outcome_view.risk_boundary} />
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <OpenClawPanel
+                  selectedTemplateId={selectedTemplateId}
+                  setSelectedTemplateId={setSelectedTemplateId}
+                  openclawUrl={openclawUrl}
+                  setOpenclawUrl={setOpenclawUrl}
+                  openclawIssue={openclawIssue}
+                  setOpenclawIssue={setOpenclawIssue}
+                  openclawAccountHint={openclawAccountHint}
+                  setOpenclawAccountHint={setOpenclawAccountHint}
+                  onExecute={handleOpenClawExecute}
+                  onApplySuggested={handleApplySuggestedTemplate}
+                  executing={openclawActing}
+                  disabled={!activeOutcomeId}
+                  currentTemplate={currentTemplate}
+                  latestOpenclawSummary={latestOpenclawSummary}
+                  suggestedTemplate={suggestedTemplate}
+                />
+
+                <SectionCard title="Goal Model">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-slate-700">Parsed Goal</div>
+                      <JsonBlock data={detail.goal.parsed_goal} />
+                    </div>
+                    <div>
+                      <div className="mb-2 text-sm font-medium text-slate-700">Parser Meta</div>
+                      <JsonBlock data={detail.goal.parser_meta} />
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  title="Flow Events"
+                  extra={<Badge tone="info">{timeline.length}</Badge>}
+                >
+                  <TimelineList items={timeline} />
+                </SectionCard>
+
+                <SectionCard
+                  title="Executions"
+                  extra={<Badge tone="info">{detail.executions.length}</Badge>}
+                >
+                  <ExecutionList items={detail.executions} />
+                </SectionCard>
+
+                <SectionCard
+                  title="Artifacts"
+                  extra={<Badge tone="success">{detail.artifacts.length}</Badge>}
+                >
+                  <ArtifactList items={detail.artifacts} />
+                </SectionCard>
+
+                <SectionCard
+                  title="Verifications"
+                  extra={<Badge tone="success">{detail.verifications.length}</Badge>}
+                >
+                  <VerificationList items={detail.verifications} />
+                </SectionCard>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

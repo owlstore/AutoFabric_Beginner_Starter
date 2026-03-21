@@ -1,0 +1,426 @@
+import { useEffect, useMemo, useState } from "react";
+import GoalInputPanel from "../components/header/GoalInputPanel";
+import OutcomeListPanel from "../components/sidebar/OutcomeListPanel";
+import OutcomeOverviewPanel from "../components/overview/OutcomeOverviewPanel";
+import OpenClawWorkspaceV2 from "../components/openclaw/OpenClawWorkspaceV2";
+import RecordTabsPanelV2 from "../components/records/RecordTabsPanelV2";
+import RecordContentPanelV2 from "../components/records/RecordContentPanelV2";
+import useWorkbenchState from "../hooks/useWorkbenchState";
+import { executeOutcome, fetchWorkspaceDetail, fetchWorkspaces, submitEntry } from "../api/workbenchApi";
+import { buildCardsFromWorkspaces, buildDetailView } from "../adapters/workbenchAdapter";
+
+export default function WorkbenchPageV2() {
+  const {
+    input,
+    setInput,
+    recentInputs,
+    setRecentInputs,
+    hasInputDraft,
+    notice,
+    clearInputDraft,
+    restoreInputDraft,
+    saveCurrentDraftToRecent,
+    replaceCurrentDraftWithRecent,
+  } = useWorkbenchState();
+
+  const [submitting, setSubmitting] = useState(false);
+  const [quickFilter, setQuickFilter] = useState("all");
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [goalTypeFilter, setGoalTypeFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("updated_desc");
+  const [activeCardId, setActiveCardId] = useState(null);
+  const [goalCandidates, setGoalCandidates] = useState([]);
+  const [expandedFields, setExpandedFields] = useState({
+    goal: false,
+    result: false,
+    next: false,
+  });
+
+  const [cards, setCards] = useState([]);
+  const [detailData, setDetailData] = useState(null);
+  const [listLoading, setListLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [listError, setListError] = useState("");
+  const [detailError, setDetailError] = useState("");
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState("collect_system_analysis_context");
+  const [openclawUrl, setOpenclawUrl] = useState("https://example.com/dashboard");
+  const [openclawIssue, setOpenclawIssue] = useState("collect more browser-side context for analysis");
+  const [openclawAccountHint, setOpenclawAccountHint] = useState("demo_user");
+  const [openclawNotice, setOpenclawNotice] = useState("");
+  const [hasOpenclawDraft, setHasOpenclawDraft] = useState(true);
+  const [openclawExecuting, setOpenclawExecuting] = useState(false);
+  const [activeTab, setActiveTab] = useState("timeline");
+
+  async function loadList(forceSelectLatest = false) {
+    try {
+      setListLoading(true);
+      setListError("");
+      const payload = await fetchWorkspaces();
+      const nextCards = buildCardsFromWorkspaces(payload);
+      setCards(nextCards);
+
+      if (forceSelectLatest) {
+        setActiveCardId(nextCards[0]?.goal_id ?? null);
+      } else {
+        setActiveCardId((prev) => prev ?? nextCards[0]?.goal_id ?? null);
+      }
+
+      return nextCards;
+    } catch (err) {
+      setListError(String(err?.message || err));
+      return [];
+    } finally {
+      setListLoading(false);
+    }
+  }
+
+  async function loadDetail(goalId) {
+    if (!goalId) return;
+    try {
+      setDetailLoading(true);
+      setDetailError("");
+      const payload = await fetchWorkspaceDetail(goalId);
+      setDetailData(payload);
+
+      const latest = payload?.latest_outcome || {};
+      const received = latest?.current_result?.openclaw?.received_payload || {};
+
+      setSelectedTemplateId(
+        latest?.current_result?.openclaw?.task_name ||
+          "collect_system_analysis_context"
+      );
+      setOpenclawUrl(received.url || "https://example.com/dashboard");
+      setOpenclawIssue(
+        received.issue || latest?.next_action?.summary || "collect more browser-side context for analysis"
+      );
+      setOpenclawAccountHint(received.account_hint || "demo_user");
+    } catch (err) {
+      setDetailError(String(err?.message || err));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadList();
+  }, []);
+
+  useEffect(() => {
+    if (activeCardId) {
+      loadDetail(activeCardId);
+    }
+  }, [activeCardId]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    const trimmed = String(input || "").trim();
+    if (!trimmed) return;
+
+    try {
+      setSubmitting(true);
+      await submitEntry(trimmed);
+      clearInputDraft();
+      await loadList(true);
+      setOpenclawNotice("目标提交成功，已刷新结果清单。");
+    } catch (err) {
+      setOpenclawNotice(`目标提交失败：${String(err?.message || err)}`);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const filteredCards = useMemo(() => {
+    let next = [...cards];
+
+    if (quickFilter === "completed") {
+      next = next.filter((x) => x.statusLabel === "已完成");
+    } else if (quickFilter === "running") {
+      next = next.filter((x) => x.statusLabel === "执行中");
+    } else if (quickFilter === "failed") {
+      next = next.filter((x) => x.statusLabel === "失败");
+    } else if (quickFilter === "openclaw") {
+      next = next.filter((x) => x.currentResult.includes("OpenClaw"));
+    }
+
+    if (statusFilter !== "all") {
+      const labelMap = {
+        completed: "已完成",
+        running: "执行中",
+        failed: "失败",
+      };
+      next = next.filter((x) => x.statusLabel === labelMap[statusFilter]);
+    }
+
+    if (goalTypeFilter !== "all") {
+      const typeMap = {
+        system_build: "系统构建",
+        system_understanding: "系统理解",
+      };
+      next = next.filter((x) => x.goalTypeLabel === typeMap[goalTypeFilter]);
+    }
+
+    if (searchText.trim()) {
+      const q = searchText.trim().toLowerCase();
+      next = next.filter((x) =>
+        [x.title, x.statusLabel, x.currentResult, x.nextAction]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    }
+
+    if (sortOrder === "updated_desc") {
+      next.sort((a, b) => Number(b.outcome_id || 0) - Number(a.outcome_id || 0));
+    } else if (sortOrder === "updated_asc") {
+      next.sort((a, b) => Number(a.outcome_id || 0) - Number(b.outcome_id || 0));
+    } else if (sortOrder === "title_asc") {
+      next.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortOrder === "title_desc") {
+      next.sort((a, b) => b.title.localeCompare(a.title));
+    }
+
+    return next;
+  }, [cards, quickFilter, statusFilter, goalTypeFilter, searchText, sortOrder]);
+
+  const activeDetail = useMemo(() => {
+    if (!detailData) return null;
+    return buildDetailView(detailData);
+  }, [detailData]);
+
+  const latestOpenclawSummary = useMemo(() => {
+    const openclaw = detailData?.latest_outcome?.current_result?.openclaw;
+    if (!openclaw) return null;
+    return {
+      status: openclaw.status || "unknown",
+      message: openclaw.message || "暂无 OpenClaw 摘要",
+    };
+  }, [detailData]);
+
+  const recentOpenclawExecutions = useMemo(() => {
+    async function refreshWorkbench() {
+    await loadList();
+    if (activeCardId) {
+      await loadDetail(activeCardId);
+    }
+  }
+
+  return (detailData?.executions || []).slice(0, 5).map((item, index) => ({
+      id: item.id,
+      label: index === 0 ? "最近一次" : "上一次",
+      status: item.status || "unknown",
+      taskName: item.task_name || "unknown_task",
+      message:
+        item.output_payload?.message ||
+        item.output_payload?.stdout?.message ||
+        "暂无执行摘要",
+      createdAt: item.created_at || "—",
+    }));
+  }, [detailData]);
+
+  const timelineItems = useMemo(() => detailData?.flow_events || [], [detailData]);
+  const executionItems = useMemo(() => detailData?.executions || [], [detailData]);
+  const artifactItems = useMemo(() => detailData?.artifacts || [], [detailData]);
+  const verificationItems = useMemo(() => detailData?.verifications || [], [detailData]);
+
+  useEffect(() => {
+    setGoalCandidates([]);
+    setExpandedFields({ goal: false, result: false, next: false });
+  }, [activeCardId]);
+
+  useEffect(() => {
+    setHasOpenclawDraft(Boolean(openclawUrl || openclawIssue || openclawAccountHint));
+  }, [openclawUrl, openclawIssue, openclawAccountHint, setHasOpenclawDraft]);
+
+  async function copyText(value) {
+    try {
+      await navigator.clipboard.writeText(String(value || ""));
+    } catch {}
+  }
+
+  function continueFromCurrentOutcome(detail) {
+    if (!detail) return;
+    const nextGoal = [
+      `Continue from current outcome: ${detail.title}`,
+      detail.currentResult ? `Current result: ${detail.currentResult}` : "",
+      detail.nextAction ? `Next action to pursue: ${detail.nextAction}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    setInput(nextGoal);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function generateGoalCandidates(detail) {
+    if (!detail) return;
+    setGoalCandidates([
+      `Continue implementation for: ${detail.title}\nFocus on: ${detail.nextAction || detail.currentResult}`,
+      `Validate and refine current outcome: ${detail.title}\nBased on current result: ${detail.currentResult || detail.nextAction}`,
+      `Create next executable task from outcome: ${detail.title}\nTarget next step: ${detail.nextAction || detail.currentResult}`,
+    ]);
+  }
+
+  function applyGoalCandidate(candidate) {
+    setInput(candidate);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function saveCandidateToRecent(candidate) {
+    const trimmed = String(candidate || "").trim();
+    if (!trimmed) return;
+    setRecentInputs((prev) => [trimmed, ...prev.filter((x) => x !== trimmed)].slice(0, 6));
+  }
+
+  function restoreLastOpenClawDraft() {
+    setOpenclawNotice("已恢复当前结果关联的 OpenClaw 参数。");
+  }
+
+  function resetOpenClawFields() {
+    const received = detailData?.latest_outcome?.current_result?.openclaw?.received_payload || {};
+    setOpenclawUrl(received.url || "https://example.com/dashboard");
+    setOpenclawIssue(received.issue || "collect more browser-side context for analysis");
+    setOpenclawAccountHint(received.account_hint || "demo_user");
+    setOpenclawNotice("已重置为当前结果对应的默认参数。");
+  }
+
+  function clearOpenClawFields() {
+    setOpenclawUrl("");
+    setOpenclawIssue("");
+    setOpenclawAccountHint("");
+    setOpenclawNotice("已清空 OpenClaw 参数。");
+  }
+
+  async function handleOpenClawExecute() {
+    const outcomeId = detailData?.latest_outcome?.id;
+    if (!outcomeId) {
+      setOpenclawNotice("当前没有可执行的 outcome。");
+      return;
+    }
+
+    try {
+      setOpenclawExecuting(true);
+
+      await executeOutcome(outcomeId, {
+        executor_type: "openclaw",
+        task_name: selectedTemplateId,
+        payload: {
+          url: openclawUrl,
+          issue: openclawIssue,
+          account_hint: openclawAccountHint,
+        },
+      });
+
+      setOpenclawNotice("OpenClaw 执行成功，正在刷新详情...");
+      await loadDetail(activeCardId);
+      await loadList();
+    } catch (err) {
+      setOpenclawNotice(`OpenClaw 执行失败：${String(err?.message || err)}`);
+    } finally {
+      setOpenclawExecuting(false);
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="mx-auto max-w-[1440px] px-6 py-8">
+        <GoalInputPanel
+          input={input}
+          setInput={setInput}
+          submitting={submitting}
+          handleSubmit={handleSubmit}
+          clearInputDraft={clearInputDraft}
+          restoreInputDraft={restoreInputDraft}
+          saveCurrentDraftToRecent={saveCurrentDraftToRecent}
+          hasInputDraft={hasInputDraft}
+          recentInputs={recentInputs}
+          replaceCurrentDraftWithRecent={replaceCurrentDraftWithRecent}
+          notice={notice}
+        />
+
+        {listError ? (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            左侧结果清单加载失败：{listError}
+          </div>
+        ) : null}
+
+        {detailError ? (
+          <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            右侧结果详情加载失败：{detailError}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+          <OutcomeListPanel
+            cards={filteredCards}
+            quickFilter={quickFilter}
+            setQuickFilter={setQuickFilter}
+            searchText={searchText}
+            setSearchText={setSearchText}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            goalTypeFilter={goalTypeFilter}
+            setGoalTypeFilter={setGoalTypeFilter}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            activeCardId={activeCardId}
+            setActiveCardId={setActiveCardId}
+          />
+
+          <div className="space-y-6">
+            {detailLoading ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+                正在加载结果详情...
+              </div>
+            ) : (
+              <>
+                <OutcomeOverviewPanel
+                  detail={activeDetail}
+                  expandedFields={expandedFields}
+                  setExpandedFields={setExpandedFields}
+                  continueFromCurrentOutcome={continueFromCurrentOutcome}
+                  generateGoalCandidates={generateGoalCandidates}
+                  goalCandidates={goalCandidates}
+                  applyGoalCandidate={applyGoalCandidate}
+                  saveCandidateToRecent={saveCandidateToRecent}
+                  copyText={copyText}
+                />
+
+                <OpenClawWorkspaceV2
+                  selectedTemplateId={selectedTemplateId}
+                  setSelectedTemplateId={setSelectedTemplateId}
+                  openclawUrl={openclawUrl}
+                  setOpenclawUrl={setOpenclawUrl}
+                  openclawIssue={openclawIssue}
+                  setOpenclawIssue={setOpenclawIssue}
+                  openclawAccountHint={openclawAccountHint}
+                  setOpenclawAccountHint={setOpenclawAccountHint}
+                  openclawNotice={openclawNotice}
+                  setOpenclawNotice={setOpenclawNotice}
+                  latestOpenclawSummary={latestOpenclawSummary}
+                  recentOpenclawExecutions={recentOpenclawExecutions}
+                  hasOpenclawDraft={hasOpenclawDraft}
+                  restoreLastOpenClawDraft={restoreLastOpenClawDraft}
+                  resetOpenClawFields={resetOpenClawFields}
+                  clearOpenClawFields={clearOpenClawFields}
+                  handleOpenClawExecute={handleOpenClawExecute}
+                />
+
+                <RecordTabsPanelV2 activeTab={activeTab} setActiveTab={setActiveTab} />
+
+                <RecordContentPanelV2
+                  activeTab={activeTab}
+                  timelineItems={timelineItems}
+                  executionItems={executionItems}
+                  artifactItems={artifactItems}
+                  verificationItems={verificationItems}
+                />
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

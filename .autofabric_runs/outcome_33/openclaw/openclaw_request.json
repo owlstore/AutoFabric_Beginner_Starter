@@ -1,0 +1,24 @@
+{
+  "task_name": "clarify_goal",
+  "payload": {
+    "goal_id": 48,
+    "outcome_id": 33,
+    "goal_type": "general_task",
+    "goal_text": "Continue implementation for: 金色的阳光\nFocus on: Review OpenClaw execution trace and decide next browser step.",
+    "parsed_goal": {
+      "scope": "unspecified",
+      "intent": "general_task",
+      "target": "Continue implementation for: 金色的阳光\nFocus on: Review OpenClaw execution trace and decide next browser step.",
+      "parser_meta": {
+        "source": "rules_fallback",
+        "llm_enabled": true
+      },
+      "source_text": "Continue implementation for: 金色的阳光\nFocus on: Review OpenClaw execution trace and decide next browser step."
+    },
+    "url": "https://example.com/dashboard",
+    "issue": "Clarify the request before proceeding.",
+    "account_hint": "demo_user"
+  },
+  "outcome_id": 33,
+  "executed_at": "2026-03-21T07:20:33.097565Z"
+}

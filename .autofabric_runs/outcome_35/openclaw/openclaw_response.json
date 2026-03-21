@@ -1,0 +1,27 @@
+{
+  "executor": "openclaw",
+  "task_name": "clarify_goal",
+  "status": "accepted",
+  "mode": "placeholder",
+  "message": "OpenClaw executor placeholder accepted the task.",
+  "received_payload": {
+    "goal_id": 54,
+    "outcome_id": 35,
+    "goal_type": "general_task",
+    "goal_text": "玩儿",
+    "parsed_goal": {
+      "scope": "unspecified",
+      "intent": "general_task",
+      "target": "玩儿",
+      "parser_meta": {
+        "source": "rules_fallback",
+        "llm_enabled": true
+      },
+      "source_text": "玩儿"
+    },
+    "url": "https://example.com/dashboard",
+    "issue": "collect more browser-side context for analysis",
+    "account_hint": "demo_user"
+  },
+  "executed_at": "2026-03-21T08:53:44.243521Z"
+}

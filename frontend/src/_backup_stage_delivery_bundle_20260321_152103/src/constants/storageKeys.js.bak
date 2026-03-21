@@ -1,0 +1,4 @@
+export const STORAGE_KEYS = {
+  INPUT_DRAFT: "autofabric.inputDraft",
+  RECENT_INPUTS: "autofabric.recentInputs",
+};

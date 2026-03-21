@@ -1,0 +1,42 @@
+#!/bin/bash
+set -euo pipefail
+
+INPUT="${1:-{}}"
+
+python3 - <<'PY' "$INPUT"
+import json
+import sys
+
+raw = sys.argv[1]
+data = json.loads(raw)
+
+task_name = data.get("task_name")
+payload = data.get("payload", {})
+
+mapped = {
+    "inspect_order_submission_ui": {
+        "bridge_status": "ok",
+        "handler": "inspect_order_submission_ui",
+        "message": "Simulated inspection of order submission failure UI.",
+    },
+    "locate_payment_module": {
+        "bridge_status": "ok",
+        "handler": "locate_payment_module",
+        "message": "Simulated module location for payment failure.",
+    },
+    "collect_system_analysis_context": {
+        "bridge_status": "ok",
+        "handler": "collect_system_analysis_context",
+        "message": "Simulated collection of system analysis context.",
+    },
+}
+
+result = mapped.get(task_name, {
+    "bridge_status": "ok",
+    "handler": task_name,
+    "message": "Fallback OpenClaw bridge handler executed.",
+})
+
+result["received_payload"] = payload
+print(json.dumps(result, ensure_ascii=False))
+PY

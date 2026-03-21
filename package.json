@@ -1,0 +1,28 @@
+{
+  "name": "autofabric_beginner_starter",
+  "version": "1.0.0",
+  "description": "这是给 macOS + 本地 OpenClaw 用户准备的最小可运行起点。",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/owlstore/AutoFabric_Beginner_Starter.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/owlstore/AutoFabric_Beginner_Starter/issues"
+  },
+  "homepage": "https://github.com/owlstore/AutoFabric_Beginner_Starter#readme",
+  "devDependencies": {
+    "react-scripts": "^5.0.1",
+    "vite": "^8.0.1"
+  }
+}

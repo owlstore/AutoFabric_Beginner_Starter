@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+from collections import Counter
+from typing import Any
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models.execution import Execution
+from app.models.flow_event import FlowEvent
+from app.models.goal import Goal
+from app.models.outcome import Outcome
+from app.services.serializer_service import serialize_outcome_for_workspace
+from app.services.stage_service import map_stage
+
+
+def _safe_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def build_workspace_items(
+    db: Session,
+    *,
+    goal_type: str | None = None,
+    status: str | None = None,
+    stage: str | None = None,
+    risk_level: str | None = None,
+) -> list[dict[str, Any]]:
+    stmt = select(Goal).order_by(Goal.id.desc())
+    goals = db.execute(stmt).scalars().all()
+
+    items: list[dict[str, Any]] = []
+
+    for goal in goals:
+        if goal_type and goal.goal_type != goal_type:
+            continue
+        if risk_level and goal.risk_level != risk_level:
+            continue
+
+        latest_outcome = db.execute(
+            select(Outcome)
+            .where(Outcome.goal_id == goal.id)
+            .order_by(Outcome.id.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+
+        if status and latest_outcome and latest_outcome.status != status:
+            continue
+        if status and not latest_outcome:
+            continue
+
+        parsed_goal = _safe_dict(goal.parsed_goal)
+        current_result = _safe_dict(latest_outcome.current_result) if latest_outcome else {}
+        next_action = _safe_dict(latest_outcome.next_action) if latest_outcome else {}
+
+        current_stage = current_result.get("stage")
+        stage_info = map_stage(
+            raw_stage=current_stage,
+            outcome_status=latest_outcome.status if latest_outcome else None,
+            current_result=current_result,
+            next_action=next_action,
+        )
+        normalized_stage = stage_info["stage_key"]
+
+        if stage and normalized_stage != stage and current_stage != stage:
+            continue
+
+        flow_event_count = (
+            db.execute(
+                select(func.count(FlowEvent.id)).where(FlowEvent.outcome_id == latest_outcome.id)
+            ).scalar()
+            if latest_outcome
+            else 0
+        )
+
+        execution_count = (
+            db.execute(
+                select(func.count(Execution.id)).where(Execution.outcome_id == latest_outcome.id)
+            ).scalar()
+            if latest_outcome
+            else 0
+        )
+
+        step_type = (
+            next_action.get("step_type")
+            or parsed_goal.get("intent")
+            or "unknown"
+        )
+
+        title = (
+            latest_outcome.title
+            if latest_outcome and latest_outcome.title
+            else parsed_goal.get("target")
+            or goal.raw_input
+        )
+
+        items.append(
+            {
+                "goal_id": goal.id,
+                "title": title,
+                "goal_type": goal.goal_type,
+                "risk_level": goal.risk_level,
+                "scope": parsed_goal.get("scope", "unspecified"),
+                "parser_meta": parsed_goal.get("parser_meta"),
+                "stage": normalized_stage,
+                "raw_stage": current_stage,
+                "stage_key": normalized_stage,
+                "stage_label": stage_info["stage_label"],
+                "step_type": step_type,
+                "execution_hint_available": True,
+                "executor_touched": bool(execution_count),
+                "executor_result_available": bool(execution_count),
+                "recommendation_reason_available": True,
+                "flow_event_count": int(flow_event_count or 0),
+                "created_at": goal.created_at,
+                "updated_at": latest_outcome.updated_at if latest_outcome else goal.created_at,
+                "latest_outcome": serialize_outcome_for_workspace(latest_outcome),
+            }
+        )
+
+    return items
+
+
+def build_stage_counts(items: list[dict[str, Any]]) -> dict[str, int]:
+    counter = Counter((item.get("stage_key") or "unknown") for item in items)
+    return {
+        "requirement": counter.get("requirement", 0),
+        "clarification": counter.get("clarification", 0),
+        "prototype": counter.get("prototype", 0),
+        "orchestration": counter.get("orchestration", 0),
+        "execution": counter.get("execution", 0),
+        "testing": counter.get("testing", 0),
+        "delivery": counter.get("delivery", 0),
+        "unknown": counter.get("unknown", 0),
+    }

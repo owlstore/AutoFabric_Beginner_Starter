@@ -1,0 +1,5 @@
+import WorkbenchPageV2 from "./pages/WorkbenchPageV2";
+
+export default function App() {
+  return <WorkbenchPageV2 />;
+}

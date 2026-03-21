@@ -1,0 +1,48 @@
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+
+async function readJson(res) {
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchHealth() {
+  const res = await fetch(`${BASE_URL}/health`);
+  return readJson(res);
+}
+
+export async function fetchWorkspaces() {
+  const res = await fetch(`${BASE_URL}/workspaces`);
+  return readJson(res);
+}
+
+export async function fetchWorkspaceDetail(goalId) {
+  const res = await fetch(`${BASE_URL}/workspaces/detail/${goalId}`);
+  return readJson(res);
+}
+
+export async function submitEntry(rawInput) {
+  const res = await fetch(`${BASE_URL}/entry/submit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_input: rawInput,
+    }),
+  });
+  return readJson(res);
+}
+
+export async function executeOutcome(outcomeId, payload) {
+  const res = await fetch(`${BASE_URL}/outcomes/${outcomeId}/execute`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  return readJson(res);
+}

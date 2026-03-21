@@ -1,0 +1,47 @@
+import { loadOutcomeTimeline } from "../api/client";
+import { useEffect, useMemo, useState } from "react";
+import { loadOutcomeWorkbenchList, loadOutcomeWorkbenchDetail, loadOutcomeTimeline } from "./api/client";
+import ExecutionReport from "./components/Reports/ExecutionReport";
+
+export default function App() {
+  const [selectedOutcomeId, setSelectedOutcomeId] = useState(null);
+  const [cards, setCards] = useState([]);
+
+  const filteredCards = cards.filter(card => card.status === "completed");
+
+  useEffect(() => {
+    async function fetchData() {
+      const data = await loadOutcomeWorkbenchList();
+      setCards(data.items || []);
+    }
+
+    fetchData();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="mx-auto max-w-[1680px] px-4 py-6 lg:px-6">
+        <div className="mb-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 className="text-2xl font-bold">Outcome Workbench</h1>
+        </div>
+
+        <div className="mb-6 space-y-4">
+          <h3 className="text-lg font-semibold">Completed Outcomes</h3>
+          <div className="space-y-4">
+            {filteredCards.map(card => (
+              <div
+                key={card.goal_id}
+                className="rounded-3xl border p-4 text-left bg-white shadow-sm hover:bg-slate-50"
+                onClick={() => setSelectedOutcomeId(card.outcome_id)}
+              >
+                <div className="text-base font-semibold">{card.title}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {selectedOutcomeId && <ExecutionReport outcomeId={selectedOutcomeId} />}
+      </div>
+    </div>
+  );
+}

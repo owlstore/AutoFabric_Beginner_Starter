@@ -1,0 +1,33 @@
+{
+  "executor": "openclaw",
+  "task_name": "inspect_order_submission_ui",
+  "status": "completed",
+  "mode": "bridge",
+  "returncode": 0,
+  "stdout": {
+    "bridge_status": "ok",
+    "handler": "inspect_order_submission_ui",
+    "message": "Simulated inspection of order submission failure UI.",
+    "received_payload": {
+      "goal_id": 41,
+      "outcome_id": 26,
+      "goal_type": "system_understanding",
+      "goal_text": "Analyze this order dashboard service",
+      "parsed_goal": {
+        "scope": "backend",
+        "intent": "understand_system",
+        "target": "Analyze this order dashboard service",
+        "parser_meta": {
+          "source": "rules_fallback",
+          "llm_enabled": true
+        },
+        "source_text": "Analyze this order dashboard service"
+      },
+      "url": "https://example.com/orders",
+      "issue": "submit button not working",
+      "account_hint": "demo_user"
+    }
+  },
+  "stderr": "",
+  "executed_at": "2026-03-20T17:20:28.710534Z"
+}

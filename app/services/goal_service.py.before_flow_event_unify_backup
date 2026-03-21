@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models.goal import Goal
+from app.models.outcome import Outcome
+from app.services.flow_event_service import create_flow_event
+
+
+def create_goal_and_initial_outcome(
+    db: Session,
+    *,
+    raw_input: str,
+    parsed_goal: dict[str, Any],
+    goal_type: str,
+    risk_level: str,
+    recommended_next_action: dict[str, Any],
+) -> tuple[Goal, Outcome]:
+    goal = Goal(
+        raw_input=raw_input,
+        parsed_goal=parsed_goal,
+        goal_type=goal_type,
+        risk_level=risk_level,
+    )
+    db.add(goal)
+    db.flush()
+
+    outcome = Outcome(
+        goal_id=goal.id,
+        title=parsed_goal.get("target") or raw_input,
+        status="draft",
+        current_result={
+            "stage": "goal_captured",
+            "summary": "Goal captured. Execution not started yet.",
+        },
+        next_action=recommended_next_action,
+        risk_boundary="Local only",
+    )
+    db.add(outcome)
+    db.flush()
+
+    create_flow_event(
+        db,
+        outcome_id=outcome.id,
+        from_status=None,
+        to_status="draft",
+        trigger_type="goal_created",
+        note="Initial outcome created.",
+    )
+
+    db.commit()
+    db.refresh(goal)
+    db.refresh(outcome)
+    return goal, outcome

@@ -1,0 +1,130 @@
+import { useEffect, useMemo, useState } from "react";
+import { executeOutcome } from "../api/workbenchApi";
+
+export default function useOpenClawState({ detailData, activeCardId, loadDetail, loadList, toast }) {
+  const [selectedTemplateId, setSelectedTemplateId] = useState("collect_system_analysis_context");
+  const [openclawUrl, setOpenclawUrl] = useState("https://example.com/dashboard");
+  const [openclawIssue, setOpenclawIssue] = useState("collect more browser-side context for analysis");
+  const [openclawAccountHint, setOpenclawAccountHint] = useState("demo_user");
+  const [openclawNotice, setOpenclawNotice] = useState("");
+  const [hasOpenclawDraft, setHasOpenclawDraft] = useState(true);
+  const [openclawExecuting, setOpenclawExecuting] = useState(false);
+
+  useEffect(() => {
+    const latest = detailData?.latest_outcome || {};
+    const received = latest?.current_result?.openclaw?.received_payload || {};
+
+    setSelectedTemplateId(
+      latest?.current_result?.openclaw?.task_name ||
+        latest?.next_action?.step_type ||
+        "collect_system_analysis_context"
+    );
+    setOpenclawUrl(received.url || "https://example.com/dashboard");
+    setOpenclawIssue(
+      received.issue || latest?.next_action?.summary || "collect more browser-side context for analysis"
+    );
+    setOpenclawAccountHint(received.account_hint || "demo_user");
+  }, [detailData]);
+
+  useEffect(() => {
+    setHasOpenclawDraft(Boolean(openclawUrl || openclawIssue || openclawAccountHint));
+  }, [openclawUrl, openclawIssue, openclawAccountHint]);
+
+  const latestOpenclawSummary = useMemo(() => {
+    const openclaw = detailData?.latest_outcome?.current_result?.openclaw;
+    if (!openclaw) return null;
+    return {
+      status: openclaw.status || "unknown",
+      message: openclaw.message || "暂无 OpenClaw 摘要",
+    };
+  }, [detailData]);
+
+  const recentOpenclawExecutions = useMemo(() => {
+    return (detailData?.executions || []).slice(0, 5).map((item, index) => ({
+      id: item.id,
+      label: index === 0 ? "最近一次" : `前序 ${index}`,
+      status: item.status || "unknown",
+      taskName: item.task_name || "unknown_task",
+      message:
+        item.output_payload?.message ||
+        item.output_payload?.stdout?.message ||
+        "暂无执行摘要",
+      createdAt: item.created_at || "—",
+    }));
+  }, [detailData]);
+
+  function restoreLastOpenClawDraft() {
+    setOpenclawNotice("已恢复当前结果关联的 OpenClaw 参数。");
+    toast.info("已恢复当前结果关联的 OpenClaw 参数。");
+  }
+
+  function resetOpenClawFields() {
+    const received = detailData?.latest_outcome?.current_result?.openclaw?.received_payload || {};
+    setOpenclawUrl(received.url || "https://example.com/dashboard");
+    setOpenclawIssue(received.issue || "collect more browser-side context for analysis");
+    setOpenclawAccountHint(received.account_hint || "demo_user");
+    setOpenclawNotice("已重置为当前结果对应的默认参数。");
+    toast.info("已将推荐参数带入 OpenClaw。");
+  }
+
+  function clearOpenClawFields() {
+    setOpenclawUrl("");
+    setOpenclawIssue("");
+    setOpenclawAccountHint("");
+    setOpenclawNotice("已清空 OpenClaw 参数。");
+    toast.info("已清空 OpenClaw 参数。");
+  }
+
+  async function handleOpenClawExecute() {
+    const outcomeId = detailData?.latest_outcome?.id;
+    if (!outcomeId) {
+      setOpenclawNotice("当前没有可执行的 outcome。");
+      toast.warning("当前没有可执行的 outcome。");
+      return;
+    }
+
+    try {
+      setOpenclawExecuting(true);
+      await executeOutcome(outcomeId, {
+        executor_type: "openclaw",
+        task_name: selectedTemplateId,
+        payload: {
+          url: openclawUrl,
+          issue: openclawIssue,
+          account_hint: openclawAccountHint,
+        },
+      });
+      setOpenclawNotice("OpenClaw 执行成功，正在刷新详情...");
+      toast.success("OpenClaw 执行成功。");
+      await loadDetail(activeCardId);
+      await loadList();
+    } catch (err) {
+      const message = String(err?.message || err);
+      setOpenclawNotice(`OpenClaw 执行失败：${message}`);
+      toast.error(`OpenClaw 执行失败：${message}`);
+    } finally {
+      setOpenclawExecuting(false);
+    }
+  }
+
+  return {
+    selectedTemplateId,
+    setSelectedTemplateId,
+    openclawUrl,
+    setOpenclawUrl,
+    openclawIssue,
+    setOpenclawIssue,
+    openclawAccountHint,
+    setOpenclawAccountHint,
+    openclawNotice,
+    setOpenclawNotice,
+    hasOpenclawDraft,
+    openclawExecuting,
+    latestOpenclawSummary,
+    recentOpenclawExecutions,
+    restoreLastOpenClawDraft,
+    resetOpenClawFields,
+    clearOpenClawFields,
+    handleOpenClawExecute,
+  };
+}

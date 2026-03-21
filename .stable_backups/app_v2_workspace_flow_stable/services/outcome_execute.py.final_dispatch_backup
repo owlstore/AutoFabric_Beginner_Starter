@@ -1,0 +1,100 @@
+from __future__ import annotations
+
+from sqlalchemy.orm import Session
+
+from app.models.goal import Goal
+from app.services.serializer_service import serialize_goal, serialize_outcome
+from app.services.flow_event_service import create_flow_event_if_status_changed
+from app.services.outcome_service import get_outcome_by_id
+
+
+def execute_outcome_by_type(db: Session, outcome_id: int):
+    outcome = get_outcome_by_id(db, outcome_id)
+    if not outcome:
+        raise ValueError("Outcome not found")
+
+    goal = db.get(Goal, outcome.goal_id)
+    if not goal:
+        raise ValueError("Goal not found")
+
+    old_status = outcome.status
+    parsed_goal = goal.parsed_goal or {}
+    intent = parsed_goal.get("intent")
+
+    artifact = None
+    verification = None
+
+    try:
+        if intent == "understand_system":
+            from app.services.system_understanding_service import collect_system_context
+
+            result = collect_system_context(
+                db=db,
+                outcome=outcome,
+                target=parsed_goal.get("target") or goal.raw_input,
+            )
+
+            if not isinstance(result, dict):
+                raise TypeError(f"collect_system_context() must return dict, got {type(result)!r}")
+
+            artifact = result.get("artifact")
+            verification = result.get("verification")
+
+            outcome.status = "completed"
+            outcome.current_result = {
+                "stage": "analysis_context_collected",
+                "summary": result.get(
+                    "summary",
+                    "System understanding context collected."
+                ),
+                "artifact": artifact,
+                "verification": verification,
+            }
+        else:
+            outcome.status = "completed"
+            outcome.current_result = {
+                "stage": "completed",
+                "summary": "Outcome executed.",
+            }
+
+        create_flow_event_if_status_changed(
+            db,
+            outcome=outcome,
+            old_status=old_status,
+            new_status=outcome.status,
+            trigger_type="execute_outcome",
+            note="Outcome executed by executor.",
+        )
+
+        db.add(outcome)
+        db.commit()
+        db.refresh(outcome)
+
+        artifact_ref = None
+        artifact_dir = None
+        if isinstance(artifact, dict):
+            artifact_ref = artifact.get("ref")
+            artifact_dir = artifact.get("workspace_dir") or artifact.get("artifact_dir")
+
+        return {
+            "execution": {
+                "ok": True,
+                "goal_id": goal.id,
+                "outcome_id": outcome.id,
+                "artifact_ref": artifact_ref,
+                "artifact_dir": artifact_dir,
+                "message": "Understanding execution completed.",
+                "idempotent": False,
+            },
+            "workspace": {
+                "goal": serialize_goal(goal),
+                "latest_outcome": serialize_outcome(outcome),
+            },
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(
+        "execute_outcome_by_type failed: "
+        + f"{type(e).__name__}: {e}"
+    ) from e

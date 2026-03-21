@@ -14,7 +14,9 @@ export default function ParsedGoalCard({ workspace }) {
   const llmEnabled = Boolean(parserMeta.llm_enabled);
 
   function renderEnabledLabel(value) {
-    return value ? "已开启" : "未开启";
+    if (value === true) return "已开启";
+    if (value === false) return "未开启";
+    return "未知";
   }
 
   function renderExplainText(source, enabled) {

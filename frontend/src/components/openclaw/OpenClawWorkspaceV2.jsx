@@ -1,0 +1,219 @@
+import SectionCard from "../common/SectionCard";
+import Badge from "../common/Badge";
+
+function PresetScenarioCard({ item, onApply }) {
+  return (
+    <button
+      onClick={() => onApply(item)}
+      className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-violet-300 hover:bg-violet-50"
+    >
+      <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+      <div className="mt-2 text-xs leading-5 text-slate-500">{item.description}</div>
+    </button>
+  );
+}
+
+function PrecheckItem({ label, ok }) {
+  return (
+    <div className={`flex items-center justify-between rounded-2xl border px-4 py-3 ${
+      ok ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"
+    }`}>
+      <div className="text-sm font-medium text-slate-700">{label}</div>
+      <div className={`text-xs font-semibold ${ok ? "text-emerald-700" : "text-amber-700"}`}>
+        {ok ? "已就绪" : "待补充"}
+      </div>
+    </div>
+  );
+}
+
+export default function OpenClawWorkspaceV2({
+  selectedTemplateId,
+  setSelectedTemplateId,
+  openclawUrl,
+  setOpenclawUrl,
+  openclawIssue,
+  setOpenclawIssue,
+  openclawAccountHint,
+  setOpenclawAccountHint,
+  openclawNotice,
+  setOpenclawNotice,
+  latestOpenclawSummary,
+  recentOpenclawExecutions,
+  hasOpenclawDraft,
+  restoreLastOpenClawDraft,
+  resetOpenClawFields,
+  clearOpenClawFields,
+  handleOpenClawExecute,
+  openclawExecuting = false,
+}) {
+  const presetScenarios = [
+    {
+      id: "order_submit",
+      label: "订单提交流程",
+      templateId: "inspect_order_submission_ui",
+      url: "https://example.com/orders",
+      issue: "submit button not working",
+      account_hint: "demo_user",
+      description: "检查提交按钮、表单校验、请求是否发出。",
+    },
+    {
+      id: "payment_locate",
+      label: "支付模块定位",
+      templateId: "locate_payment_module",
+      url: "https://example.com/payments",
+      issue: "need to locate payment flow and related module",
+      account_hint: "demo_user",
+      description: "用于快速进入支付链路排查与页面定位。",
+    },
+    {
+      id: "system_context",
+      label: "系统上下文采集",
+      templateId: "collect_system_analysis_context",
+      url: "https://example.com/dashboard",
+      issue: "collect more browser-side context for analysis",
+      account_hint: "demo_user",
+      description: "用于系统理解阶段补充浏览器侧上下文。",
+    },
+  ];
+
+  function applyPresetScenario(item) {
+    setSelectedTemplateId(item.templateId);
+    setOpenclawUrl(item.url);
+    setOpenclawIssue(item.issue);
+    setOpenclawAccountHint(item.account_hint);
+    setOpenclawNotice(`已应用预设场景：${item.label}`);
+  }
+
+  const precheckItems = [
+    { label: "目标网址", ok: Boolean(openclawUrl.trim()) },
+    { label: "问题描述", ok: Boolean(openclawIssue.trim()) },
+    { label: "账号提示", ok: Boolean(openclawAccountHint.trim()) },
+  ];
+
+  return (
+    <SectionCard title="OpenClaw 工作区" extra={<Badge tone="purple">OpenClaw Agent</Badge>}>
+      <div className="grid gap-5">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">常用场景</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {presetScenarios.map((item) => (
+              <PresetScenarioCard key={item.id} item={item} onApply={applyPresetScenario} />
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">任务模板</label>
+          <select
+            value={selectedTemplateId}
+            onChange={(e) => setSelectedTemplateId(e.target.value)}
+            className="h-11 rounded-2xl border border-slate-300 bg-white px-3 text-sm outline-none"
+          >
+            <option value="inspect_order_submission_ui">inspect_order_submission_ui</option>
+            <option value="locate_payment_module">locate_payment_module</option>
+            <option value="collect_system_analysis_context">collect_system_analysis_context</option>
+          </select>
+          <div className="text-xs text-slate-500">当前模板可用于浏览器执行、问题定位与上下文采集。</div>
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">目标 URL</label>
+          <input
+            value={openclawUrl}
+            onChange={(e) => setOpenclawUrl(e.target.value)}
+            className="h-11 rounded-2xl border border-slate-300 px-4 text-sm outline-none"
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">问题描述</label>
+          <textarea
+            value={openclawIssue}
+            onChange={(e) => setOpenclawIssue(e.target.value)}
+            rows={3}
+            className="rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none"
+          />
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-slate-700">账号提示</label>
+          <input
+            value={openclawAccountHint}
+            onChange={(e) => setOpenclawAccountHint(e.target.value)}
+            className="h-11 rounded-2xl border border-slate-300 px-4 text-sm outline-none"
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={resetOpenClawFields}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            重置默认值
+          </button>
+          <button
+            onClick={clearOpenClawFields}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            清空参数
+          </button>
+          <button
+            onClick={restoreLastOpenClawDraft}
+            disabled={!hasOpenclawDraft}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            恢复最近使用
+          </button>
+        </div>
+
+        {openclawNotice ? (
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+            {openclawNotice}
+          </div>
+        ) : null}
+
+        {latestOpenclawSummary ? (
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Badge tone="purple">最新结果</Badge>
+              <Badge tone="success">{latestOpenclawSummary.status}</Badge>
+            </div>
+            <div className="text-sm text-slate-700">{latestOpenclawSummary.message}</div>
+
+            {recentOpenclawExecutions?.length ? (
+              <div className="mt-4 space-y-3">
+                <div className="text-sm font-medium text-slate-700">最近执行记录</div>
+                {recentOpenclawExecutions.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-violet-100 bg-white/70 p-3">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <Badge tone="info">{item.label}</Badge>
+                      <Badge tone="success">{item.status}</Badge>
+                      <Badge tone="default">{item.taskName}</Badge>
+                    </div>
+                    <div className="text-sm text-slate-700">{item.message}</div>
+                    <div className="mt-2 text-xs text-slate-500">{item.createdAt || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3">
+          <div className="text-sm font-medium text-slate-700">本次执行前检查</div>
+          {precheckItems.map((item) => (
+            <PrecheckItem key={item.label} label={item.label} ok={item.ok} />
+          ))}
+        </div>
+
+        <button
+          onClick={handleOpenClawExecute}
+          disabled={openclawExecuting}
+          className="rounded-2xl bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {openclawExecuting ? "执行中..." : "使用 OpenClaw 执行"}
+        </button>
+      </div>
+    </SectionCard>
+  );
+}

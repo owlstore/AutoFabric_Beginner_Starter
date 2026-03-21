@@ -1,0 +1,141 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel, Field, ConfigDict
+
+
+class FlowEventResponse(BaseModel):
+    id: int
+    outcome_id: int
+    from_status: str | None = None
+    to_status: str
+    trigger_type: str
+    note: str | None = None
+    created_at: datetime
+
+
+class ExecutionResponse(BaseModel):
+    id: int
+    outcome_id: int
+    executor_name: str
+    task_name: str | None = None
+    status: str
+    input_payload: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    output_payload: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    created_at: datetime
+
+
+class ArtifactResponse(BaseModel):
+    id: int
+    outcome_id: int
+    artifact_type: str
+    file_path: str | None = None
+    artifact_ref: str | None = None
+    metadata: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    created_at: datetime
+
+
+class VerificationResponse(BaseModel):
+    id: int
+    outcome_id: int
+    verifier_name: str
+    status: str
+    checks: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    summary: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    verified_at: datetime | None = None
+    created_at: datetime
+
+
+class GoalResponse(BaseModel):
+    id: int
+    raw_input: str
+    parsed_goal: dict[str, Any] | str | None = None
+    goal_type: str | None = None
+    risk_level: str | None = None
+    parser_meta: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class OutcomeResponse(BaseModel):
+    id: int
+    goal_id: int
+    title: str
+    status: str
+    current_result: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    next_action: dict[str, Any] | list[Any] | str | int | float | bool | None = None
+    risk_boundary: str | None = None
+    raw_stage: str | None = None
+    stage_key: str | None = None
+    stage_label: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkspaceListItemResponse(BaseModel):
+    goal_id: int
+    title: str
+    goal_type: str | None = None
+    risk_level: str | None = None
+    scope: str | None = None
+    parser_meta: dict[str, Any] | None = None
+    stage: str | None = None
+    raw_stage: str | None = None
+    stage_key: str | None = None
+    stage_label: str | None = None
+    step_type: str | None = None
+    execution_hint_available: bool
+    executor_touched: bool
+    executor_result_available: bool
+    recommendation_reason_available: bool
+    flow_event_count: int
+    created_at: datetime
+    updated_at: datetime
+    latest_outcome: OutcomeResponse | None = None
+
+
+class WorkspaceListResponse(BaseModel):
+    items: list[WorkspaceListItemResponse]
+    count: int
+    filters: dict[str, Any] | None = None
+
+
+class WorkspaceSummaryResponse(BaseModel):
+    goal_id: int
+    outcome_count: int
+    execution_count: int
+    artifact_count: int
+    verification_count: int
+    flow_event_count: int
+    latest_outcome_status: str | None = None
+    latest_stage: str | None = None
+    latest_raw_stage: str | None = None
+    latest_stage_label: str | None = None
+
+
+class WorkspaceDetailResponse(BaseModel):
+    goal: GoalResponse
+    latest_outcome: OutcomeResponse | None = None
+    outcomes: list[OutcomeResponse]
+    executions: list[ExecutionResponse]
+    artifacts: list[ArtifactResponse]
+    verifications: list[VerificationResponse]
+    flow_events: list[FlowEventResponse]
+    summary: WorkspaceSummaryResponse
+
+
+class TimelineResponse(BaseModel):
+    items: list[FlowEventResponse]
+    count: int
+
+
+class WorkspaceFilterQuery(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    goal_type: str | None = Field(default=None)
+    status: str | None = Field(default=None)
+    stage: str | None = Field(default=None)
+    risk_level: str | None = Field(default=None)

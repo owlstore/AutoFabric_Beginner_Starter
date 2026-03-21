@@ -1,0 +1,183 @@
+from __future__ import annotations
+
+import json
+import subprocess
+from datetime import datetime, timezone
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.outcome import Outcome
+
+
+class VerifyOutcomeError(Exception):
+    pass
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_json_like(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return value
+    return value
+
+
+def _normalize_dict(value: Any) -> dict[str, Any]:
+    parsed = _parse_json_like(value)
+    if isinstance(parsed, dict):
+        return json.loads(json.dumps(parsed, ensure_ascii=False))
+    return {}
+
+
+def _normalize_next_action(value: Any) -> dict[str, Any]:
+    parsed = _parse_json_like(value)
+
+    if isinstance(parsed, dict):
+        return {
+            "summary": parsed.get("summary") or "Pending next action.",
+            "step_type": parsed.get("step_type"),
+            "steps": list(parsed.get("steps")) if isinstance(parsed.get("steps"), list) else [],
+            "requires_human_confirmation": bool(parsed.get("requires_human_confirmation", False)),
+        }
+
+    if isinstance(parsed, str):
+        text = parsed.strip()
+        return {
+            "summary": text or "Pending next action.",
+            "step_type": None,
+            "steps": [],
+            "requires_human_confirmation": False,
+        }
+
+    return {
+        "summary": "Pending next action.",
+        "step_type": None,
+        "steps": [],
+        "requires_human_confirmation": False,
+    }
+
+
+def _run_command(cmd: list[str]) -> dict[str, Any]:
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise VerifyOutcomeError("本机未找到 docker 命令，请先安装并启动 Docker Desktop。") from exc
+
+    return {
+        "command": cmd,
+        "returncode": proc.returncode,
+        "stdout": (proc.stdout or "")[-2000:],
+        "stderr": (proc.stderr or "")[-2000:],
+        "ok": proc.returncode == 0,
+    }
+
+
+def verify_outcome_build(db: Session, outcome_id: int) -> dict[str, Any]:
+    outcome = db.execute(
+        select(Outcome).where(Outcome.id == outcome_id)
+    ).scalars().first()
+    if not outcome:
+        raise VerifyOutcomeError(f"Outcome {outcome_id} 不存在")
+
+    current_result = _normalize_dict(outcome.current_result)
+    artifact = _normalize_dict(current_result.get("artifact"))
+    image_tag = artifact.get("image_tag")
+
+    if not image_tag:
+        raise VerifyOutcomeError("当前 outcome 没有可验证的 docker image artifact。")
+
+    checks = [
+        {
+            "name": "image_exists",
+            "command": ["docker", "image", "inspect", image_tag],
+        },
+        {
+            "name": "git_available",
+            "command": ["docker", "run", "--rm", image_tag, "git", "--version"],
+        },
+        {
+            "name": "python_available",
+            "command": ["docker", "run", "--rm", image_tag, "python3", "--version"],
+        },
+    ]
+
+    results = []
+    for item in checks:
+        result = _run_command(item["command"])
+        result["name"] = item["name"]
+        results.append(result)
+
+    passed = all(item["ok"] for item in results)
+
+    current_result = _normalize_dict(outcome.current_result)
+    current_result["verification"] = {
+        "status": "passed" if passed else "failed",
+        "checks": results,
+        "verified_at": _now_iso(),
+        "image_tag": image_tag,
+    }
+    current_result["last_verification_run"] = {
+        "mode": "docker_verify",
+        "status": "completed" if passed else "failed",
+        "verified_at": _now_iso(),
+        "image_tag": image_tag,
+    }
+
+    if passed:
+        current_result["stage"] = "verification_completed"
+        current_result["summary"] = "Docker image verification passed."
+        outcome.status = "completed"
+        outcome.next_action = json.dumps(
+            {
+                "summary": "Verification passed. The outcome is ready for delivery or follow-up extension.",
+                "step_type": "completed",
+                "steps": [
+                    "Review verification evidence.",
+                    "Use the image artifact.",
+                    "Create a follow-up outcome if further extension is needed.",
+                ],
+                "requires_human_confirmation": False,
+            },
+            ensure_ascii=False,
+        )
+    else:
+        current_result["stage"] = "verification_failed"
+        current_result["summary"] = "Docker image verification failed."
+        outcome.status = "in_progress"
+        outcome.next_action = json.dumps(
+            {
+                "summary": "Investigate the failed verification checks and repair the build.",
+                "step_type": "repair_build",
+                "steps": [
+                    "Review failed verification checks.",
+                    "Adjust Dockerfile or build spec.",
+                    "Re-run execute and verify.",
+                ],
+                "requires_human_confirmation": False,
+            },
+            ensure_ascii=False,
+        )
+
+    outcome.current_result = current_result
+    db.add(outcome)
+    db.commit()
+    db.refresh(outcome)
+
+    return {
+        "ok": passed,
+        "outcome_id": outcome.id,
+        "image_tag": image_tag,
+        "verification": current_result["verification"],
+        "next_action": _normalize_next_action(outcome.next_action),
+    }

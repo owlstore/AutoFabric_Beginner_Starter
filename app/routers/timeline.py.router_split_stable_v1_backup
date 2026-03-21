@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.db import get_db
+from app.models.goal import Goal
+from app.models.outcome import Outcome
+from app.models.execution import Execution
+from app.models.artifact import Artifact
+from app.models.verification import Verification
+
+
+router = APIRouter()
+
+
+def _parse_json_like(value: Any) -> Any:
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return value
+    return value
+
+
+@router.get("/outcomes/{outcome_id}/timeline")
+def get_outcome_timeline(outcome_id: int, db: Session = Depends(get_db)):
+    outcome = db.execute(
+        select(Outcome).where(Outcome.id == outcome_id)
+    ).scalars().first()
+    if not outcome:
+        raise HTTPException(status_code=404, detail=f"Outcome {outcome_id} 不存在")
+
+    goal = db.execute(
+        select(Goal).where(Goal.id == outcome.goal_id)
+    ).scalars().first()
+
+    executions = db.execute(
+        select(Execution).where(Execution.outcome_id == outcome_id).order_by(Execution.id.asc())
+    ).scalars().all()
+
+    artifacts = db.execute(
+        select(Artifact).where(Artifact.outcome_id == outcome_id).order_by(Artifact.id.asc())
+    ).scalars().all()
+
+    verifications = db.execute(
+        select(Verification).where(Verification.outcome_id == outcome_id).order_by(Verification.id.asc())
+    ).scalars().all()
+
+    response = {
+        "goal_id": outcome.goal_id,
+        "outcome_id": outcome.id,
+        "goal": {
+            "id": goal.id,
+            "raw_input": goal.raw_input,
+            "goal_type": goal.goal_type,
+            "risk_level": goal.risk_level,
+            "created_at": goal.created_at,
+        } if goal else None,
+        "outcome": {
+            "id": outcome.id,
+            "title": outcome.title,
+            "status": outcome.status,
+            "current_result": _parse_json_like(outcome.current_result),
+            "next_action": (
+                _parse_json_like(outcome.next_action)
+                if isinstance(_parse_json_like(outcome.next_action), dict)
+                else {
+                    "summary": str(_parse_json_like(outcome.next_action) or ""),
+                    "step_type": None,
+                    "steps": [],
+                    "requires_human_confirmation": False,
+                }
+            ),
+            "risk_boundary": outcome.risk_boundary,
+            "created_at": outcome.created_at,
+            "updated_at": outcome.updated_at,
+        },
+        "executions": [
+            {
+                "id": row.id,
+                "outcome_id": row.outcome_id,
+                "executor_name": row.executor_name,
+                "task_name": row.task_name,
+                "status": row.status,
+                "input_payload": _parse_json_like(row.input_payload),
+                "output_payload": _parse_json_like(row.output_payload),
+                "started_at": row.started_at,
+                "finished_at": row.finished_at,
+                "created_at": row.created_at,
+            }
+            for row in executions
+        ],
+        "artifacts": [
+            {
+                "id": row.id,
+                "outcome_id": row.outcome_id,
+                "artifact_type": row.artifact_type,
+                "file_path": row.file_path,
+                "artifact_ref": row.artifact_ref,
+                "metadata": _parse_json_like(getattr(row, "artifact_metadata", None)),
+                "created_at": row.created_at,
+            }
+            for row in artifacts
+        ],
+        "verifications": [
+            {
+                "id": row.id,
+                "outcome_id": row.outcome_id,
+                "verifier_name": row.verifier_name,
+                "status": row.status,
+                "checks": _parse_json_like(row.checks),
+                "summary": _parse_json_like(row.summary),
+                "verified_at": row.verified_at,
+                "created_at": row.created_at,
+            }
+            for row in verifications
+        ],
+        "summary": {
+            "execution_count": len(executions),
+            "artifact_count": len(artifacts),
+            "verification_count": len(verifications),
+            "latest_outcome_status": outcome.status,
+        },
+    }
+
+    return jsonable_encoder(response)
