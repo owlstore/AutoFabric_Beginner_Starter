@@ -3,12 +3,91 @@
 @tailwind utilities;
 
 html, body, #root {
+  height: 100%;
   min-height: 100%;
 }
 
 body {
   margin: 0;
-  background: #f1f5f9;
-  color: #0f172a;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f0f10;
+  color: #e4e4e7;
+  font-family: -apple-system, "SF Pro Text", "Segoe UI Variable", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3e; }
+
+/* ---- Animations ---- */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeSlideLeft {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeSlideRight {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes dot-pulse {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+@keyframes check-draw {
+  from { stroke-dashoffset: 16; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes progress-fill {
+  from { width: 0%; }
+}
+
+.anim-bubble-in     { animation: fadeSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-bubble-right  { animation: fadeSlideLeft 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-bubble-left   { animation: fadeSlideRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-pulse         { animation: pulse-soft 2s ease-in-out infinite; }
+
+.anim-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.dot-pulse span {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #71717a;
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+.dot-pulse span:nth-child(2) { animation-delay: 0.16s; }
+.dot-pulse span:nth-child(3) { animation-delay: 0.32s; }
+
+/* ---- Stage colors ---- */
+.stage-pill-requirement   { background: #1e3a5f; color: #60a5fa; }
+.stage-pill-clarification { background: #4a3728; color: #fbbf24; }
+.stage-pill-prototype     { background: #3b2d5e; color: #a78bfa; }
+.stage-pill-orchestration { background: #1a3a3a; color: #22d3ee; }
+.stage-pill-execution     { background: #1a3a2a; color: #4ade80; }
+.stage-pill-testing       { background: #3a1a1a; color: #f87171; }
+.stage-pill-delivery      { background: #3a3520; color: #facc15; }
+
+.stage-dot-requirement   { background: #3b82f6; box-shadow: 0 0 8px #3b82f633; }
+.stage-dot-clarification { background: #f59e0b; box-shadow: 0 0 8px #f59e0b33; }
+.stage-dot-prototype     { background: #8b5cf6; box-shadow: 0 0 8px #8b5cf633; }
+.stage-dot-orchestration { background: #06b6d4; box-shadow: 0 0 8px #06b6d433; }
+.stage-dot-execution     { background: #22c55e; box-shadow: 0 0 8px #22c55e33; }
+.stage-dot-testing       { background: #ef4444; box-shadow: 0 0 8px #ef444433; }
+.stage-dot-delivery      { background: #eab308; box-shadow: 0 0 8px #eab30833; }

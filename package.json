@@ -7,6 +7,20 @@
     "test": "tests"
   },
   "scripts": {
+    "dev:up": "bash scripts/dev_workbench_up.sh",
+    "dev:status": "bash scripts/dev_workbench_status.sh",
+    "dev:down": "bash scripts/dev_workbench_down.sh",
+    "dev:where": "bash scripts/check_frontend_entry.sh",
+    "gate:e2e": "bash scripts/40_e2e_workbench_gate.sh",
+    "gate:templates": "bash scripts/41_template_kit_gate.sh",
+    "frontend:dev": "npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173",
+    "frontend:build": "npm --prefix frontend run build",
+    "frontend:e2e": "npm --prefix frontend run test:e2e",
+    "frontend:e2e:smoke": "npm --prefix frontend run test:e2e:smoke",
+    "frontend:e2e:fullflow": "npm --prefix frontend run test:e2e:fullflow",
+    "frontend:lint": "npm --prefix frontend run lint",
+    "quark:dev": "pnpm --dir quark-browser dev",
+    "quark:build": "pnpm --dir quark-browser build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -24,5 +38,8 @@
   "devDependencies": {
     "react-scripts": "^5.0.1",
     "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "axios": "^1.13.6"
   }
 }

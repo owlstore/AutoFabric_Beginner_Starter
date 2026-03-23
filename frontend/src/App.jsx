@@ -1,10 +1,5 @@
-import WorkbenchPageV2 from "./pages/WorkbenchPageV2";
-import { ToastProvider } from "./context/ToastContext";
+import ManusPage from "./pages/ManusPage";
 
 export default function App() {
-  return (
-    <ToastProvider>
-      <WorkbenchPageV2 />
-    </ToastProvider>
-  );
+  return <ManusPage />;
 }

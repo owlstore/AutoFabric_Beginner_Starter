@@ -1,49 +1,9 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
-
-async function toJson(res, errorMessage) {
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text ? `${errorMessage}: ${text}` : errorMessage);
-  }
-  return res.json();
-}
+const API_BASE = import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 export { API_BASE };
 
 export async function loadHealth() {
   const res = await fetch(`${API_BASE}/health`);
-  return toJson(res, "加载健康检查失败");
-}
-
-export async function loadOutcomeWorkbenchList() {
-  const res = await fetch(`${API_BASE}/workspaces`);
-  return toJson(res, "加载 Outcome 工作台列表失败");
-}
-
-export async function loadOutcomeWorkbenchDetail(goalId) {
-  const res = await fetch(`${API_BASE}/workspaces/detail/${goalId}`);
-  return toJson(res, "加载 Outcome 工作台详情失败");
-}
-
-export async function loadOutcomeTimeline(outcomeId) {
-  const res = await fetch(`${API_BASE}/outcomes/${outcomeId}/timeline`);
-  return toJson(res, "加载 Outcome 时间线失败");
-}
-
-export async function submitEntry(payload) {
-  const res = await fetch(`${API_BASE}/entry/submit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return toJson(res, "入口提交失败，请检查后端服务");
-}
-
-export async function triggerOutcomeExecute(outcomeId, payload = {}) {
-  const res = await fetch(`${API_BASE}/outcomes/${outcomeId}/execute`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  return toJson(res, "Outcome 执行失败");
+  if (!res.ok) throw new Error("Health check failed");
+  return res.json();
 }

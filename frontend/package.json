@@ -7,14 +7,21 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "check:raw-button": "bash -lc \"if rg -n '<button|</button>' src -g '!**/*.bak' -g '!**/_backup*/**' -g '!**/.backup_fix/**'; then echo '[FAILED] Found raw <button> in src'; exit 1; else echo '[OK] No raw <button> in src'; fi\"",
+    "preview": "vite preview",
+    "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:fullflow": "playwright test --grep @fullflow",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
+    "axios": "^1.13.6",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.58.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
