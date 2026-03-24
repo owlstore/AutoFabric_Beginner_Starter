@@ -1,12 +1,17 @@
-from fastapi.testclient import TestClient
-from app.api.main import app
-
-client = TestClient(app)
+"""Basic smoke tests — verify app starts and core routes exist."""
 
 
-def test_parse_goal():
-    response = client.post("/goals/parse", json={"raw_input": "Ubuntu with Docker and Git"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["goal_type"] == "environment_build"
-    assert "docker" in data["packages"]
+def test_app_has_routes(client):
+    """App should have registered routes."""
+    from app.main import app
+    routes = [r.path for r in app.routes]
+    assert "/health" in routes
+    assert "/projects" in routes
+
+
+def test_openapi_schema(client):
+    """OpenAPI schema should be accessible."""
+    resp = client.get("/openapi.json")
+    assert resp.status_code == 200
+    schema = resp.json()
+    assert schema["info"]["title"] == "AutoFabric API"

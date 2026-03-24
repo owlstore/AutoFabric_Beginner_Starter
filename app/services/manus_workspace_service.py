@@ -48,6 +48,9 @@ STAGE_LABELS = {
     "delivery": "交付归档",
 }
 
+# Stages that require approval for non-low-risk projects
+APPROVAL_GATES = {"prototype", "orchestration", "delivery"}
+
 
 def bootstrap_project(prompt: str, project_name: str | None = None, autopilot: bool = True) -> dict:
     project = create_project(
@@ -83,6 +86,8 @@ def run_autopilot(project_id: int, operator_note: str | None = None) -> dict:
     if not overview:
         not_found("project", project_id)
 
+    risk = overview.get("project", {}).get("risk_level", "medium")
+    needs_approval = risk in ("high", "critical")
     stage_objects = overview.get("stage_objects", {})
 
     requirement = _latest(stage_objects.get("requirements"))
@@ -118,16 +123,21 @@ def run_autopilot(project_id: int, operator_note: str | None = None) -> dict:
         overview = get_project_overview(project_id)
         stage_objects = overview.get("stage_objects", {})
 
+    # --- Prototype (approval gate) ---
     prototype = _latest(stage_objects.get("prototypes"))
     if requirement and not prototype:
         prototype = create_prototype(PrototypeCreate(requirement_card_id=requirement["id"]))
     if prototype and not prototype.get("ia_json"):
         generate_prototype_endpoint(prototype["id"])
     if prototype and prototype.get("status") != "confirmed":
+        if needs_approval and not _check_approval(project_id, "prototype"):
+            _request_approval(project_id, "prototype", "原型设计完成，请确认后继续")
+            return get_workspace_snapshot(project_id)
         confirm_prototype(prototype["id"])
         overview = get_project_overview(project_id)
         stage_objects = overview.get("stage_objects", {})
 
+    # --- Orchestration (approval gate) ---
     prototype = _latest(stage_objects.get("prototypes"))
     orchestration = _latest(stage_objects.get("orchestration_plans"))
     if prototype and not orchestration:
@@ -135,6 +145,9 @@ def run_autopilot(project_id: int, operator_note: str | None = None) -> dict:
     if orchestration and not orchestration.get("agent_jobs_json"):
         generate_orchestration(orchestration["id"])
     if orchestration and orchestration.get("status") != "approved":
+        if needs_approval and not _check_approval(project_id, "orchestration"):
+            _request_approval(project_id, "orchestration", "任务编排完成，请确认执行计划")
+            return get_workspace_snapshot(project_id)
         approve_orchestration_plan(orchestration["id"])
         overview = get_project_overview(project_id)
         stage_objects = overview.get("stage_objects", {})
@@ -175,11 +188,104 @@ def run_autopilot(project_id: int, operator_note: str | None = None) -> dict:
         overview = get_project_overview(project_id)
         stage_objects = overview.get("stage_objects", {})
 
+    # --- Delivery (approval gate) ---
     deliveries = stage_objects.get("deliveries") or []
     if not deliveries:
+        if needs_approval and not _check_approval(project_id, "delivery"):
+            _request_approval(project_id, "delivery", "测试通过，确认发布交付包")
+            return get_workspace_snapshot(project_id)
         create_delivery(DeliveryCreate(project_id=project_id))
 
     return get_workspace_snapshot(project_id)
+
+
+def _check_approval(project_id: int, stage_name: str) -> bool:
+    """Check if the stage has been approved."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT decision FROM human_approvals
+            WHERE project_id = %s AND stage_name = %s
+            ORDER BY id DESC LIMIT 1
+        """, (project_id, stage_name))
+        row = cur.fetchone()
+        cur.close()
+    return row is not None and row[0] == "approved"
+
+
+def _request_approval(project_id: int, stage_name: str, reason: str) -> dict:
+    """Create an approval request."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO human_approvals (project_id, stage_name, approval_type, decision, decision_note)
+            VALUES (%s, %s, 'stage_gate', 'pending', %s)
+            ON CONFLICT DO NOTHING
+            RETURNING id
+        """, (project_id, stage_name, reason))
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+    return {"approval_id": row[0] if row else None, "stage": stage_name, "status": "pending"}
+
+
+def approve_stage(project_id: int, stage_name: str, decision: str = "approved", note: str | None = None) -> dict:
+    """Human approves or rejects a stage gate."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE human_approvals
+            SET decision = %s, decided_by = 'operator', decision_note = COALESCE(%s, decision_note),
+                updated_at = NOW()
+            WHERE project_id = %s AND stage_name = %s AND decision = 'pending'
+        """, (decision, note, project_id, stage_name))
+        conn.commit()
+        cur.close()
+
+    if decision == "approved":
+        return run_autopilot(project_id)
+    return get_workspace_snapshot(project_id)
+
+
+def rerun_from_stage(project_id: int, stage_name: str, note: str | None = None) -> dict:
+    """Reset a stage and all downstream stages, then re-run autopilot."""
+    if stage_name not in STAGES:
+        from app.errors import bad_request
+        bad_request(f"Unknown stage: {stage_name}")
+
+    stage_index = STAGES.index(stage_name)
+    stages_to_reset = STAGES[stage_index:]
+
+    with get_conn() as conn:
+        cur = conn.cursor()
+        # Reset stage states
+        for s in stages_to_reset:
+            cur.execute("""
+                UPDATE project_stage_states
+                SET stage_status = 'pending', completed_at = NULL, updated_at = NOW()
+                WHERE project_id = %s AND stage_key = %s
+            """, (project_id, s))
+
+        # Set current stage back
+        cur.execute("""
+            UPDATE projects SET current_stage_key = %s, updated_at = NOW()
+            WHERE id = %s
+        """, (stage_name, project_id))
+
+        # Clear approvals for reset stages
+        for s in stages_to_reset:
+            cur.execute("""
+                DELETE FROM human_approvals
+                WHERE project_id = %s AND stage_name = %s
+            """, (project_id, s))
+
+        conn.commit()
+        cur.close()
+
+    if note:
+        _append_project_note(project_id, f"Rerun from {stage_name}: {note}")
+
+    return run_autopilot(project_id)
 
 
 def get_workspace_snapshot(project_id: int) -> dict:

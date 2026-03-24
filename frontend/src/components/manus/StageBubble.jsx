@@ -29,19 +29,26 @@ export default function StageBubble({ message }) {
   const stage = message.stage_key;
   const label = STAGE_LABELS[stage] || stage || "系统";
   const sc = STATUS_CFG[message.status] || STATUS_CFG.completed;
+  const isApproval = message.type === "approval";
 
   return (
     <div className="flex justify-start">
       <div className="max-w-[88%] flex items-start gap-2.5">
         {/* Avatar */}
-        <div className="w-7 h-7 rounded-lg bg-[#1e1e28] flex items-center justify-center shrink-0">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M7 1L1.5 4l5.5 3 5.5-3L7 1zM1.5 10l5.5 3 5.5-3M1.5 7l5.5 3 5.5-3" stroke="#60a5fa" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round"/>
-          </svg>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${isApproval ? "bg-amber-900/30" : "bg-[#1e1e28]"}`}>
+          {isApproval ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v5M7 9v1" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1L1.5 4l5.5 3 5.5-3L7 1zM1.5 10l5.5 3 5.5-3M1.5 7l5.5 3 5.5-3" stroke="#60a5fa" strokeWidth="1" strokeLinejoin="round" strokeLinecap="round"/>
+            </svg>
+          )}
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl rounded-tl-md border border-[#1e1e28] bg-[#16161a] px-4 py-3 shadow-lg shadow-black/10 min-w-[200px] max-w-full">
+        <div className={`group rounded-2xl rounded-tl-md border px-4 py-3 shadow-lg shadow-black/10 min-w-[200px] max-w-full ${isApproval ? "border-amber-500/30 bg-amber-950/30" : "border-[#1e1e28] bg-[#16161a]"}`}>
           {/* Header row */}
           <div className="flex items-center gap-2 mb-2">
             {stage && (
@@ -49,16 +56,32 @@ export default function StageBubble({ message }) {
                 {label}
               </span>
             )}
-            <span className={`flex items-center gap-1 text-[11px] ${sc.color}`}>
-              {sc.icon === "check" && <CheckIcon />}
-              {sc.icon === "dot" && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
-              {sc.text}
+            <span className={`flex items-center gap-1 text-[11px] ${isApproval ? "text-amber-400" : sc.color}`}>
+              {isApproval ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  等待审批
+                </>
+              ) : (
+                <>
+                  {sc.icon === "check" && <CheckIcon />}
+                  {sc.icon === "dot" && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
+                  {sc.text}
+                </>
+              )}
             </span>
+            {!isApproval && message.status === "completed" && stage && message.content?.project_id && (
+              <RerunButton projectId={message.content.project_id} stage={stage} />
+            )}
           </div>
 
-          {/* Content — stage-specific rendering */}
+          {/* Content */}
           <div className="text-[13px] text-[#a1a1aa] leading-relaxed">
-            {renderStageContent(stage, message.content)}
+            {isApproval ? (
+              <ApprovalContent c={message.content} />
+            ) : (
+              renderStageContent(stage, message.content)
+            )}
           </div>
         </div>
       </div>
@@ -427,6 +450,99 @@ function DeliveryContent({ c }) {
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+function RerunButton({ projectId, stage }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleRerun() {
+    if (!confirm(`确定重跑 ${STAGE_LABELS[stage] || stage} 及下游阶段？`)) return;
+    setLoading(true);
+    try {
+      await fetch(`${API_BASE}/manus/projects/${projectId}/stages/${stage}/rerun`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch (e) {
+      console.error("Rerun error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleRerun}
+      disabled={loading}
+      className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-white/5 text-[#52525b] hover:text-[#a1a1aa] transition-all"
+      title={`重跑 ${STAGE_LABELS[stage] || stage}`}
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M1 6a5 5 0 019-3M11 6a5 5 0 01-9 3M10 1v2h-2M2 11V9h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    </button>
+  );
+}
+
+function ApprovalContent({ c }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [decided, setDecided] = useState(null);
+
+  async function handleDecision(decision) {
+    setSubmitting(true);
+    try {
+      const resp = await fetch(
+        `${API_BASE}/manus/projects/${c.project_id}/approve/${c.stage}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision }),
+        }
+      );
+      if (resp.ok) {
+        setDecided(decision);
+      }
+    } catch (e) {
+      console.error("Approval error:", e);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (decided) {
+    return (
+      <div className="space-y-2">
+        <p className="text-white font-medium">{c._label}</p>
+        <p className="text-[12px]">
+          {decided === "approved" ? "已批准，autopilot 继续推进" : "已拒绝"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-white font-medium">{c._label}</p>
+      {c.reason && <p className="text-[12px] text-amber-200/80">{c.reason}</p>}
+      <div className="flex gap-2">
+        <button
+          onClick={() => handleDecision("approved")}
+          disabled={submitting}
+          className="px-4 py-1.5 text-[12px] rounded-lg bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600/50 transition disabled:opacity-50"
+        >
+          批准继续
+        </button>
+        <button
+          onClick={() => handleDecision("rejected")}
+          disabled={submitting}
+          className="px-4 py-1.5 text-[12px] rounded-lg bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600/40 transition disabled:opacity-50"
+        >
+          拒绝
+        </button>
+      </div>
     </div>
   );
 }

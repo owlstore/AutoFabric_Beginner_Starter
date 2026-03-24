@@ -128,6 +128,18 @@ async def bootstrap_stream(payload: StreamBootstrapRequest):
                         "event": "error",
                         "data": json.dumps({"message": status["error"]}),
                     }
+
+                # Check if autopilot stopped due to approval gate
+                try:
+                    pending = _check_pending_approval(project_id)
+                    if pending:
+                        yield {
+                            "event": "approval_required",
+                            "data": json.dumps(pending),
+                        }
+                except Exception:
+                    pass
+
                 # Send final complete event with full snapshot
                 try:
                     snapshot = get_workspace_snapshot(project_id)
@@ -174,3 +186,20 @@ def _make_name(prompt: str) -> str:
     for sp in ("。", "\n", ",", "，"):
         cleaned = cleaned.split(sp, 1)[0].strip()
     return cleaned[:24]
+
+
+def _check_pending_approval(project_id: int) -> dict | None:
+    """Check if there's a pending approval for this project."""
+    from app.db.pool import get_conn
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT stage_name, decision_note FROM human_approvals
+            WHERE project_id = %s AND decision = 'pending'
+            ORDER BY id DESC LIMIT 1
+        """, (project_id,))
+        row = cur.fetchone()
+        cur.close()
+    if row:
+        return {"stage": row[0], "reason": row[1] or "需要人工确认后继续"}
+    return None

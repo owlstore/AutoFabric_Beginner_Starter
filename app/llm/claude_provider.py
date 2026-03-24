@@ -11,7 +11,8 @@ from app.llm.provider import LLMProvider, LLMResponse
 
 class ClaudeProvider(LLMProvider):
     def __init__(self):
-        self.client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+        base_url = os.getenv("ANTHROPIC_BASE_URL") or None
+        self.client = anthropic.Anthropic(base_url=base_url) if base_url else anthropic.Anthropic()
         self.model_fast = os.getenv("LLM_MODEL_FAST", "claude-haiku-4-5-20251001")
         self.model_strong = os.getenv("LLM_MODEL_STRONG", "claude-sonnet-4-20250514")
 

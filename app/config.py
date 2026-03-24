@@ -26,10 +26,12 @@ class LLMConfig:
 @dataclass
 class OpenClawConfig:
     enabled: bool = True
-    bridge_mode: str = "llm"  # "llm" | "shell" | "mock"
+    bridge_mode: str = "llm"  # "llm" | "shell" | "mock" | "gateway"
     executor_timeout: int = 120
     max_retries: int = 2
     output_dir: str = "generated"
+    gateway_url: str = "ws://127.0.0.1:18789"
+    gateway_agent: str = "main"
 
     @classmethod
     def from_env(cls) -> "OpenClawConfig":
@@ -38,6 +40,8 @@ class OpenClawConfig:
             bridge_mode=os.getenv("OPENCLAW_BRIDGE_MODE", "llm"),
             executor_timeout=int(os.getenv("OPENCLAW_EXECUTOR_TIMEOUT", "120")),
             output_dir=os.getenv("OPENCLAW_OUTPUT_DIR", "generated"),
+            gateway_url=os.getenv("OPENCLAW_GATEWAY_URL", "ws://127.0.0.1:18789"),
+            gateway_agent=os.getenv("OPENCLAW_GATEWAY_AGENT", "main"),
         )
 
 

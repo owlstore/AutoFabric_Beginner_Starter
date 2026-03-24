@@ -200,6 +200,16 @@ export default function useProjectFlow() {
           setCurrentAction("");
           break;
         }
+        case "approval_required": {
+          pushMsg("system", "approval", {
+            _label: `需要人工审批: ${STAGE_LABELS[data.stage] || data.stage}`,
+            stage: data.stage,
+            reason: data.reason,
+            project_id: activeIdRef.current,
+          }, data.stage, "pending");
+          setCurrentAction("等待审批...");
+          break;
+        }
         case "error": {
           pushMsg("system", "text", `Autopilot 错误: ${data.message || data}`, null, "error");
           break;

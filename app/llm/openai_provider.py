@@ -11,7 +11,8 @@ from app.llm.provider import LLMProvider, LLMResponse
 
 class OpenAIProvider(LLMProvider):
     def __init__(self):
-        self.client = OpenAI()  # reads OPENAI_API_KEY from env
+        base_url = os.getenv("OPENAI_BASE_URL") or None
+        self.client = OpenAI(base_url=base_url)  # reads OPENAI_API_KEY from env
         self.model_fast = os.getenv("LLM_MODEL_FAST", "gpt-4o-mini")
         self.model_strong = os.getenv("LLM_MODEL_STRONG", "gpt-4o")
 
