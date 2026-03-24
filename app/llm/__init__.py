@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import os
-
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+_project_root = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_project_root / ".env", override=True)
 
 from app.llm.provider import LLMProvider
 
