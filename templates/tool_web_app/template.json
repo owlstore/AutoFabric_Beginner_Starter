@@ -1,0 +1,35 @@
+{
+  "template_key": "tool_web_app",
+  "template_name": "工具型 Web App",
+  "description": "适合计算器、文本工具、汇率工具、转换工具等轻量网页应用。",
+  "scenes": [
+    "计算器",
+    "文本处理",
+    "格式转换",
+    "小型效率工具"
+  ],
+  "default_pages": [
+    {
+      "name": "工具首页",
+      "type": "page",
+      "elements": ["输入区", "操作区", "结果区", "历史记录"]
+    }
+  ],
+  "default_entities": [
+    {
+      "name": "ToolHistory",
+      "fields": ["input_value", "output_value", "created_at"]
+    }
+  ],
+  "default_modules": [
+    "输入处理",
+    "执行动作",
+    "结果展示",
+    "历史记录"
+  ],
+  "tech_preferences": [
+    "Web",
+    "React",
+    "FastAPI"
+  ]
+}

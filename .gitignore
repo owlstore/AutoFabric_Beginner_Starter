@@ -4,16 +4,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# Env
+# Env (secrets)
 .env
 .env.*
+!.env.example
 
 # macOS
 .DS_Store
 
 # Node
-frontend/node_modules/
+node_modules/
 frontend/dist/
+frontend/test-results/
 
 # Logs
 *.log
@@ -29,3 +31,16 @@ htmlcov/
 
 # Local temp files
 *.sqlite3
+
+# AutoFabric generated outputs
+generated/
+runtime/
+
+# Legacy backups (never commit)
+.archive/
+.stable_backups/
+.autofabric_runs/
+.manual_snapshots/
+*.bak
+*_backup
+*_backup_*

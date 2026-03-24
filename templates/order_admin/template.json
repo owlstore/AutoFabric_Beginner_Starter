@@ -1,0 +1,64 @@
+{
+  "template_key": "order_admin",
+  "template_name": "订单后台",
+  "description": "适合订单、客户、商品、权限等后台管理类场景。",
+  "scenes": [
+    "订单管理",
+    "客户管理",
+    "商品管理",
+    "后台权限控制"
+  ],
+  "default_pages": [
+    {
+      "name": "订单列表页",
+      "type": "page",
+      "elements": ["筛选栏", "订单表格", "导出按钮"]
+    },
+    {
+      "name": "订单详情页",
+      "type": "page",
+      "elements": ["订单信息", "商品明细", "状态操作"]
+    },
+    {
+      "name": "客户管理页",
+      "type": "page",
+      "elements": ["客户表格", "客户表单"]
+    },
+    {
+      "name": "商品管理页",
+      "type": "page",
+      "elements": ["商品表格", "商品表单"]
+    },
+    {
+      "name": "权限配置页",
+      "type": "page",
+      "elements": ["角色表格", "权限矩阵"]
+    }
+  ],
+  "default_entities": [
+    {
+      "name": "Order",
+      "fields": ["order_no", "status", "customer_name", "amount", "created_at"]
+    },
+    {
+      "name": "Customer",
+      "fields": ["customer_name", "phone", "email", "level"]
+    },
+    {
+      "name": "Product",
+      "fields": ["product_name", "price", "stock", "status"]
+    }
+  ],
+  "default_modules": [
+    "订单查询",
+    "订单导出",
+    "客户管理",
+    "商品管理",
+    "权限配置"
+  ],
+  "tech_preferences": [
+    "Web",
+    "React",
+    "FastAPI"
+  ]
+}

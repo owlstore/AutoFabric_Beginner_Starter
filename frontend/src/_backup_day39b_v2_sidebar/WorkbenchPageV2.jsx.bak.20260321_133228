@@ -1,0 +1,52 @@
+import { useState } from "react";
+import GoalInputPanel from "../components/header/GoalInputPanel";
+import useWorkbenchState from "../hooks/useWorkbenchState";
+
+export default function WorkbenchPageV2() {
+  const {
+    input,
+    setInput,
+    recentInputs,
+    hasInputDraft,
+    notice,
+    clearInputDraft,
+    restoreInputDraft,
+    saveCurrentDraftToRecent,
+    replaceCurrentDraftWithRecent,
+  } = useWorkbenchState();
+
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+    setTimeout(() => {
+      setSubmitting(false);
+    }, 500);
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="mx-auto max-w-[1440px] px-6 py-8">
+        <GoalInputPanel
+          input={input}
+          setInput={setInput}
+          submitting={submitting}
+          handleSubmit={handleSubmit}
+          clearInputDraft={clearInputDraft}
+          restoreInputDraft={restoreInputDraft}
+          saveCurrentDraftToRecent={saveCurrentDraftToRecent}
+          hasInputDraft={hasInputDraft}
+          recentInputs={recentInputs}
+          replaceCurrentDraftWithRecent={replaceCurrentDraftWithRecent}
+          notice={notice}
+        />
+
+        <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+          WorkbenchPageV2 已跑通：当前已接入顶部目标输入与草稿状态。<br />
+          下一步将迁入结果清单、结果概览与 OpenClaw 工作区。
+        </div>
+      </div>
+    </div>
+  );
+}

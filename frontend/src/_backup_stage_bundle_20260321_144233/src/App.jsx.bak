@@ -1,0 +1,12 @@
+import WorkbenchPageV2 from "./pages/WorkbenchPageV2";
+import LegacyWorkbenchPage from "./pages/legacy/LegacyWorkbenchPage";
+
+const USE_V2_AS_PRIMARY = true;
+
+export default function App() {
+  if (USE_V2_AS_PRIMARY) {
+    return <WorkbenchPageV2 />;
+  }
+
+  return <LegacyWorkbenchPage />;
+}

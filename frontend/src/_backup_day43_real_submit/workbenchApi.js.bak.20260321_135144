@@ -1,0 +1,19 @@
+const BASE_URL = "http://127.0.0.1:8000";
+
+async function readJson(res) {
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchWorkspaces() {
+  const res = await fetch(`${BASE_URL}/workspaces`);
+  return readJson(res);
+}
+
+export async function fetchWorkspaceDetail(goalId) {
+  const res = await fetch(`${BASE_URL}/workspaces/detail/${goalId}`);
+  return readJson(res);
+}

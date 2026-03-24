@@ -1,0 +1,46 @@
+{
+  "template_key": "task_kanban",
+  "template_name": "任务看板",
+  "description": "适合任务协作、状态流转、负责人、优先级管理等团队协作场景。",
+  "scenes": [
+    "任务管理",
+    "团队协作",
+    "项目跟踪",
+    "状态看板"
+  ],
+  "default_pages": [
+    {
+      "name": "任务看板页",
+      "type": "page",
+      "elements": ["列看板", "任务卡片", "快速新增", "筛选栏"]
+    },
+    {
+      "name": "任务详情页",
+      "type": "page",
+      "elements": ["任务信息", "负责人", "优先级", "状态流转"]
+    },
+    {
+      "name": "筛选统计页",
+      "type": "page",
+      "elements": ["筛选器", "统计卡片", "任务表格"]
+    }
+  ],
+  "default_entities": [
+    {
+      "name": "Task",
+      "fields": ["title", "description", "status", "priority", "assignee", "created_at"]
+    }
+  ],
+  "default_modules": [
+    "任务新增",
+    "状态切换",
+    "负责人分配",
+    "优先级管理",
+    "筛选统计"
+  ],
+  "tech_preferences": [
+    "Web",
+    "React",
+    "FastAPI"
+  ]
+}
