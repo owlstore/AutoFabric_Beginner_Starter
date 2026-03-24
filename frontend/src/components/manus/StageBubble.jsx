@@ -2,6 +2,9 @@ import { useState } from "react";
 import { STAGE_LABELS } from "../../constants/stages";
 import { API_BASE } from "../../api/client";
 import QuarkButton from "../quark/QuarkButton";
+import MarkdownBlock from "./MarkdownBlock";
+import CodePreview from "./CodePreview";
+import MermaidDiagram from "./MermaidDiagram";
 
 const STATUS_CFG = {
   completed: { icon: "check", text: "已完成", color: "text-green-400" },
@@ -124,6 +127,15 @@ function RequirementContent({ c }) {
 
 function PrototypeContent({ c }) {
   const [showPreview, setShowPreview] = useState(false);
+  const [showArch, setShowArch] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [viewport, setViewport] = useState("100%");
+
+  // Extract mermaid from page_flow_json or module_map_json
+  const mermaidCode = c.page_flow_json?.mermaid || c.module_map_json?.mermaid || null;
+
+  // Build files array from generated_files if present
+  const codeFiles = Array.isArray(c.generated_files) ? c.generated_files : [];
 
   return (
     <div className="space-y-2">
@@ -155,21 +167,67 @@ function PrototypeContent({ c }) {
           </div>
         </div>
       )}
-      {/* Preview button + iframe */}
-      {c.preview_url && (
+      {/* Mermaid architecture diagram */}
+      {mermaidCode && (
         <div className="mt-2">
           <QuarkButton
-            onClick={() => setShowPreview(!showPreview)}
+            onClick={() => setShowArch(!showArch)}
             variant="raw"
-            className="px-3 py-1 text-[12px] rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition"
+            className="px-3 py-1 text-[12px] rounded-lg bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 transition"
           >
-            {showPreview ? "隐藏预览" : "查看原型预览"}
+            {showArch ? "隐藏架构图" : "查看架构图"}
           </QuarkButton>
+          {showArch && <MermaidDiagram code={mermaidCode} className="mt-2" />}
+        </div>
+      )}
+      {/* Code files preview */}
+      {codeFiles.length > 0 && (
+        <div className="mt-2">
+          <QuarkButton
+            onClick={() => setShowCode(!showCode)}
+            variant="raw"
+            className="px-3 py-1 text-[12px] rounded-lg bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 transition"
+          >
+            {showCode ? "隐藏代码" : `查看代码 (${codeFiles.length} 文件)`}
+          </QuarkButton>
+          {showCode && <CodePreview files={codeFiles} className="mt-2" />}
+        </div>
+      )}
+      {/* Preview button + iframe with viewport switching */}
+      {c.preview_url && (
+        <div className="mt-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <QuarkButton
+              onClick={() => setShowPreview(!showPreview)}
+              variant="raw"
+              className="px-3 py-1 text-[12px] rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition"
+            >
+              {showPreview ? "隐藏预览" : "查看原型预览"}
+            </QuarkButton>
+            {showPreview && (
+              <div className="flex gap-1">
+                {[
+                  { label: "桌面", w: "100%" },
+                  { label: "平板", w: "768px" },
+                  { label: "手机", w: "375px" },
+                ].map(({ label, w }) => (
+                  <button
+                    key={w}
+                    onClick={() => setViewport(w)}
+                    className={`px-2 py-0.5 text-[10px] rounded ${viewport === w ? "bg-blue-600/30 text-blue-300" : "bg-[#1e1e28] text-[#52525b] hover:text-[#a1a1aa]"} transition`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {showPreview && (
-            <div className="mt-2 rounded-xl overflow-hidden border border-[#2a2a30]">
+            <div className="mt-2 rounded-xl overflow-hidden border border-[#2a2a30] flex justify-center bg-[#0d0d12] p-2">
               <iframe
                 src={`${API_BASE}${c.preview_url}`}
-                className="w-full h-[400px] bg-white"
+                style={{ width: viewport, maxWidth: "100%" }}
+                className="h-[420px] bg-white rounded-lg transition-all duration-300"
                 sandbox="allow-scripts allow-same-origin"
                 title="Prototype Preview"
               />
@@ -182,6 +240,11 @@ function PrototypeContent({ c }) {
 }
 
 function OrchestrationContent({ c }) {
+  const [showDep, setShowDep] = useState(false);
+
+  // dependency_graph_json may contain mermaid
+  const depMermaid = c.dependency_graph_json?.mermaid || null;
+
   return (
     <div className="space-y-2">
       {c._label && <p className="text-white font-medium">{c._label}</p>}
@@ -208,12 +271,46 @@ function OrchestrationContent({ c }) {
           </div>
         </div>
       )}
+      {/* Mermaid dependency graph */}
+      {depMermaid && (
+        <div className="mt-2">
+          <QuarkButton
+            onClick={() => setShowDep(!showDep)}
+            variant="raw"
+            className="px-3 py-1 text-[12px] rounded-lg bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 transition"
+          >
+            {showDep ? "隐藏依赖图" : "查看依赖图"}
+          </QuarkButton>
+          {showDep && <MermaidDiagram code={depMermaid} className="mt-2" />}
+        </div>
+      )}
     </div>
   );
 }
 
 function ExecutionContent({ c }) {
   const result = c.execution_result;
+  const [showCode, setShowCode] = useState(false);
+
+  // Collect generated files from job results
+  const codeFiles = [];
+  if (result?.job_results) {
+    for (const j of result.job_results) {
+      if (j.files_written) {
+        for (const f of j.files_written) {
+          if (typeof f === "object" && f.path) codeFiles.push(f);
+          else if (typeof f === "string") codeFiles.push({ path: f, content: "" });
+        }
+      }
+    }
+  }
+  // Also check top-level generated_files
+  if (Array.isArray(c.generated_files)) {
+    for (const f of c.generated_files) {
+      if (!codeFiles.find((cf) => cf.path === f.path)) codeFiles.push(f);
+    }
+  }
+
   return (
     <div className="space-y-2">
       {c._label && <p className="text-white font-medium">{c._label}</p>}
@@ -227,6 +324,18 @@ function ExecutionContent({ c }) {
               {j.files_written?.length > 0 && <span className="text-[#52525b]">({j.files_written.length} files)</span>}
             </div>
           ))}
+        </div>
+      )}
+      {codeFiles.length > 0 && codeFiles.some((f) => f.content) && (
+        <div className="mt-2">
+          <QuarkButton
+            onClick={() => setShowCode(!showCode)}
+            variant="raw"
+            className="px-3 py-1 text-[12px] rounded-lg bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 transition"
+          >
+            {showCode ? "隐藏代码" : `查看代码 (${codeFiles.length} 文件)`}
+          </QuarkButton>
+          {showCode && <CodePreview files={codeFiles} className="mt-2" />}
         </div>
       )}
     </div>
@@ -278,6 +387,8 @@ function TestingContent({ c }) {
 }
 
 function DeliveryContent({ c }) {
+  const [showReadme, setShowReadme] = useState(false);
+
   return (
     <div className="space-y-2">
       {c._label && <p className="text-white font-medium">{c._label}</p>}
@@ -286,12 +397,35 @@ function DeliveryContent({ c }) {
         <p className="text-[11px] font-mono text-[#52525b] truncate">{c.delivery_dir}</p>
       )}
       {c.summary_md && (
-        <details className="mt-1">
-          <summary className="text-[11px] text-[#52525b] cursor-pointer hover:text-[#a1a1aa]">README 预览</summary>
-          <pre className="mt-1 p-2 rounded bg-[#0d0d10] text-[11px] font-mono overflow-x-auto max-h-[300px] overflow-y-auto whitespace-pre-wrap">
-            {c.summary_md.slice(0, 2000)}
-          </pre>
-        </details>
+        <div className="mt-1">
+          <QuarkButton
+            onClick={() => setShowReadme(!showReadme)}
+            variant="raw"
+            className="px-3 py-1 text-[12px] rounded-lg bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 transition"
+          >
+            {showReadme ? "隐藏 README" : "README 预览"}
+          </QuarkButton>
+          {showReadme && (
+            <div className="mt-2 p-3 rounded-lg bg-[#0d0d12] border border-[#1e1e28] max-h-[400px] overflow-y-auto">
+              <MarkdownBlock content={c.summary_md} />
+            </div>
+          )}
+        </div>
+      )}
+      {/* Download button */}
+      {c.project_id && (
+        <div className="mt-2">
+          <a
+            href={`${API_BASE}/projects/${c.project_id}/delivery/download`}
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-[12px] rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 transition"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 2v6m0 0L3.5 5.5M6 8l2.5-2.5M2 10h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            下载交付包
+          </a>
+        </div>
       )}
     </div>
   );

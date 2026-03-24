@@ -216,4 +216,34 @@ def write_prototype_files(project_id: int, prototype_data: dict) -> str:
         encoding="utf-8",
     )
 
+    # Auto-build: try npm install + build for preview serving
+    _try_build(proto_dir)
+
     return str(proto_dir)
+
+
+def _try_build(proto_dir: Path) -> bool:
+    """Best-effort: run npm install + build. Returns True on success."""
+    import subprocess
+    import shutil
+
+    npm = shutil.which("npm")
+    if not npm:
+        return False
+
+    try:
+        subprocess.run(
+            [npm, "install"],
+            cwd=str(proto_dir),
+            timeout=60,
+            capture_output=True,
+        )
+        result = subprocess.run(
+            [npm, "run", "build"],
+            cwd=str(proto_dir),
+            timeout=60,
+            capture_output=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False

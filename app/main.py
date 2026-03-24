@@ -20,6 +20,8 @@ from app.routers.deliveries import router as deliveries_router
 from app.routers.project_views import router as project_views_router
 from app.routers.preview import router as preview_router
 from app.routers.manus import router as manus_router
+from app.routers.download import router as download_router
+from app.routers.events import router as events_router
 
 
 @asynccontextmanager
@@ -55,6 +57,8 @@ app.include_router(deliveries_router)
 app.include_router(project_views_router)
 app.include_router(preview_router)
 app.include_router(manus_router)
+app.include_router(download_router)
+app.include_router(events_router)
 
 
 @app.get("/health")
