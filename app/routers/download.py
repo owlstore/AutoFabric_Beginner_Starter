@@ -8,7 +8,7 @@ import zipfile
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-from app.db.pool import get_conn
+from app.config import config
 from app.errors import not_found
 
 router = APIRouter(tags=["download"])
@@ -17,20 +17,15 @@ router = APIRouter(tags=["download"])
 @router.get("/projects/{project_id}/delivery/download")
 def download_delivery(project_id: int):
     """Stream the delivery package as a zip file."""
-    # Find delivery dir from DB
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT delivery_dir FROM deliveries WHERE project_id = %s ORDER BY id DESC LIMIT 1",
-            (project_id,),
-        )
-        row = cur.fetchone()
-        cur.close()
+    # Delivery files live under generated/project_{id}/delivery_package/
+    # Fall back to the full project output dir if delivery_package doesn't exist
+    base = os.path.join(config.openclaw.output_dir, f"project_{project_id}")
+    delivery_dir = os.path.join(base, "delivery_package")
 
-    if not row or not row[0]:
-        not_found("delivery", project_id)
+    if not os.path.isdir(delivery_dir):
+        # Try the full project output as fallback
+        delivery_dir = base
 
-    delivery_dir = row[0]
     if not os.path.isdir(delivery_dir):
         not_found("delivery directory", project_id)
 

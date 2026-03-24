@@ -1,0 +1,66 @@
+{
+  "version": "V1.1",
+  "goals": [
+    "强化 Prototype 稳定性",
+    "强化 Runtime 可运行能力",
+    "强化 Validation 精细度",
+    "为模板化做准备"
+  ],
+  "tasks": [
+    {
+      "id": "V1_1_001",
+      "title": "Prototype 页面推断增强",
+      "type": "prototype",
+      "priority": "high",
+      "done": false,
+      "acceptance": [
+        "prototype_spec/latest 不再频繁为 null",
+        "page_tree 至少可覆盖工具、看板、后台三类场景"
+      ]
+    },
+    {
+      "id": "V1_1_002",
+      "title": "Prototype 组件映射增强",
+      "type": "prototype",
+      "priority": "high",
+      "done": false,
+      "acceptance": [
+        "component_map 覆盖主要页面",
+        "field_map 与 data_entities 一致性提升"
+      ]
+    },
+    {
+      "id": "V1_1_003",
+      "title": "Generated Runtime 挂载强化",
+      "type": "runtime",
+      "priority": "high",
+      "done": false,
+      "acceptance": [
+        "generated-runtime/mount 可成功挂载",
+        "生成接口可通过 curl 调用"
+      ]
+    },
+    {
+      "id": "V1_1_004",
+      "title": "Validation 检查细化",
+      "type": "validation",
+      "priority": "high",
+      "done": false,
+      "acceptance": [
+        "validation report 支持新版主产物优先",
+        "score 能准确反映 prototype/backend/testing/delivery 完整度"
+      ]
+    },
+    {
+      "id": "V1_1_005",
+      "title": "模板化预留结构",
+      "type": "template",
+      "priority": "medium",
+      "done": false,
+      "acceptance": [
+        "新增模板目录",
+        "至少定义工具型、任务看板、订单后台 3 类模板入口"
+      ]
+    }
+  ]
+}

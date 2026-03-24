@@ -15,6 +15,7 @@ __pycache__/
 # Node
 node_modules/
 frontend/dist/
+frontend/test-results/
 
 # Logs
 *.log
