@@ -48,7 +48,7 @@ def execute_job(
         system=CODE_GEN_PROMPT,
         user="\n\n".join(parts),
         tier="strong",
-        max_tokens=8000,
+        max_tokens=16000,
     )
     return result
 

@@ -153,6 +153,11 @@ def reply_clarification(clarification_id: int, payload: ClarificationReply):
                 "target_users": req[2] or "", "problem_statement": req[3] or "",
             }
             refined = refine_requirement(req_card, payload.answers_json)
+            # LLM may return a list instead of dict; extract first item if so
+            if isinstance(refined, list):
+                refined = refined[0] if refined else {}
+            if not isinstance(refined, dict):
+                refined = {}
             # Update requirement card with refined data
             cur.execute(
                 """

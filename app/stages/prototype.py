@@ -108,7 +108,7 @@ def generate_ui_prototype(requirement_card: dict, ia: dict, modules: dict) -> di
         system=UI_PROTOTYPE_PROMPT,
         user=user_msg,
         tier="strong",
-        max_tokens=8000,
+        max_tokens=16000,
     )
 
 
