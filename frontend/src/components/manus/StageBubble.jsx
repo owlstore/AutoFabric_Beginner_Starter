@@ -312,7 +312,7 @@ function OrchestrationContent({ c }) {
 }
 
 function ExecutionContent({ c }) {
-  const result = c.execution_result;
+  const result = c.execution_result || c.payload_json?.execution_result;
   const [showCode, setShowCode] = useState(false);
 
   // Collect generated files from job results
@@ -366,7 +366,7 @@ function ExecutionContent({ c }) {
 }
 
 function TestingContent({ c }) {
-  const result = c.result;
+  const result = c.result || c.result_json;
   return (
     <div className="space-y-2">
       {c._label && <p className="text-white font-medium">{c._label}</p>}

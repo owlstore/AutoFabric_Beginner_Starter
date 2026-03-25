@@ -112,9 +112,9 @@ def _normalize_name(text: str, fallback: str = "智能工作台") -> str:
     for splitter in ("。", "，", ".", ",", "\n"):
         cleaned = cleaned.split(splitter, 1)[0].strip()
     if re.search(r"[\u4e00-\u9fff]", cleaned):
-        return cleaned[:10]
+        return cleaned[:32]
     words = re.findall(r"[A-Za-z0-9]+", cleaned)
-    return " ".join(words[:4]).title() or fallback
+    return " ".join(words[:6]).title() or fallback
 
 
 def _guess_goal_type(text: str) -> str:

@@ -350,7 +350,7 @@ def _make_project_name(prompt: str) -> str:
         return "Untitled Mission"
     for splitter in ("。", "\n", ",", "，"):
         cleaned = cleaned.split(splitter, 1)[0].strip()
-    return cleaned[:24]
+    return cleaned[:48]
 
 
 def _latest(items: list[dict] | None) -> dict | None:

@@ -158,8 +158,51 @@ def write_prototype_files(project_id: int, prototype_data: dict) -> str:
         encoding="utf-8",
     )
 
-    # Write index.html
+    # Write index.html — self-contained version using CDN (for preview without build)
+    # Extract App component code for inline embedding
+    app_code = ""
+    for f in prototype_data.get("files", []):
+        if f["path"].endswith("App.jsx"):
+            app_code = f["content"]
+            break
+    # Convert to inline-friendly: strip imports, convert export default
+    app_lines = []
+    for line in app_code.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("import "):
+            continue
+        if stripped.startswith("export default function "):
+            app_lines.append(line.replace("export default function ", "function "))
+        elif stripped.startswith("export default "):
+            app_lines.append(line.replace("export default ", "const _default = "))
+        elif stripped.startswith("export "):
+            app_lines.append(line.replace("export ", "", 1))
+        else:
+            app_lines.append(line)
+    app_inline = "\n".join(app_lines)
+
     (proto_dir / "index.html").write_text(
+        '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
+        '  <meta charset="UTF-8" />\n'
+        '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n'
+        f'  <title>AutoFabric Prototype #{project_id}</title>\n'
+        '  <script src="https://cdn.tailwindcss.com"></script>\n'
+        '</head>\n<body class="bg-gray-950 text-white">\n'
+        '  <div id="root"></div>\n'
+        '  <script src="https://unpkg.com/react@19/umd/react.production.min.js"></script>\n'
+        '  <script src="https://unpkg.com/react-dom@19/umd/react-dom.production.min.js"></script>\n'
+        '  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>\n'
+        '  <script type="text/babel">\n'
+        f'{app_inline}\n'
+        '    const root = ReactDOM.createRoot(document.getElementById("root"));\n'
+        '    root.render(<App />);\n'
+        '  </script>\n'
+        '</body>\n</html>\n',
+        encoding="utf-8",
+    )
+
+    # Also write Vite-based index.html for local dev (separate file)
+    (proto_dir / "index.dev.html").write_text(
         '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n'
         '  <meta charset="UTF-8" />\n'
         '  <meta name="viewport" content="width=device-width, initial-scale=1.0" />\n'

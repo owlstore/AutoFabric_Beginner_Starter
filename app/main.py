@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -33,10 +34,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AutoFabric API", version="0.2.0", lifespan=lifespan)
 
-# CORS — restrict to known origins
+# CORS — allow localhost + Railway production domain
+_cors_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+_railway_url = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+if _railway_url:
+    # Escape dots for regex and add HTTPS pattern
+    _escaped = _railway_url.replace(".", r"\.")
+    _cors_regex = rf"^https?://(localhost|127\.0\.0\.1)(:\d+)?$|^https://{_escaped}$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=_cors_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,8 +68,21 @@ app.include_router(events_router)
 
 @app.get("/health")
 def health():
+    from app.config import config
+    env_keys = [
+        "DATABASE_URL", "POSTGRES_URL", "POSTGRES_HOST", "POSTGRES_DB",
+        "POSTGRES_PASSWORD", "POSTGRES_PORT", "POSTGRES_USER",
+        "LLM_PROVIDER", "OPENCLAW_BRIDGE_MODE", "PORT", "APP_PORT",
+    ]
     return {
         "ok": True,
         "service": "AutoFabric API",
         "version": "0.2.0",
+        "db_connected": True,
+        "env_present": {k: bool(os.getenv(k)) for k in env_keys},
+        "total_env_count": len(os.environ),
+        "openclaw": {
+            "enabled": True,
+            "bridge_mode": config.openclaw.bridge_mode,
+        },
     }

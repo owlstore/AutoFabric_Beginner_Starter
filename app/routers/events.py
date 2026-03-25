@@ -185,7 +185,7 @@ def _make_name(prompt: str) -> str:
         return "Untitled Mission"
     for sp in ("。", "\n", ",", "，"):
         cleaned = cleaned.split(sp, 1)[0].strip()
-    return cleaned[:24]
+    return cleaned[:48]
 
 
 def _check_pending_approval(project_id: int) -> dict | None:
